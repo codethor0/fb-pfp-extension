@@ -11,7 +11,9 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-EXT = pathlib.Path("/Users/thor/Documents/kimi/tasks/2026-10-11/13-23-44-e2497a65/fb-pfp-extension")
+# Resolve the extension root relative to this test file, so the test runs
+# from any checkout without machine-specific paths.
+EXT = pathlib.Path(__file__).resolve().parent.parent
 content_js = (EXT / "content.js").read_text()
 
 MOCK = """

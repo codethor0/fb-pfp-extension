@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "fb-pfp: Profile Picture Cycler",
+  "version": "0.1.0",
+  "description": "Open-source, local-only tool that changes your Facebook profile picture from a set of images you choose. No accounts, no servers, no tracking.",
+  "permissions": ["storage", "unlimitedStorage", "scripting", "activeTab"],
+  "host_permissions": ["*://www.facebook.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

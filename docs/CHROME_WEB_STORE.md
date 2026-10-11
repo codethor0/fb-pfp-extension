@@ -27,7 +27,7 @@ Everything else is free: the extension is MIT, GitHub hosting is free, and updat
 ## Pre-submission checklist (all must be green)
 
 - `make test` passes (syntax, manifest, end-to-end mock).
-- No absolute paths, no tool names, no personal identifiers in any file (`grep -rn "/Users/" .` returns nothing).
+- No absolute paths, no tool names, no personal identifiers in any file (a recursive grep for a home-directory prefix such as `"/Users"` returns nothing).
 - Icons present in all three sizes; manifest version bumped.
 - One live dry-run against your real Facebook passed.
 - Meta non-affiliation disclaimer visible in the store description.

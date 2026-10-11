@@ -17,6 +17,56 @@ Everything else is free: the extension is MIT, GitHub hosting is free, and updat
 6. Submit for review. Typical review: a few days to two weeks.
 7. For Brave: after the CWS item is live it is installable in Brave. Optionally also submit to the Brave add-ons page (free).
 
+## Automated releases from the command line
+
+After the item exists in the dashboard, every future update is one command:
+
+```bash
+make release
+```
+
+This builds the store zip, uploads it, and submits it for review. It requires
+a one-time credential setup (about 15 minutes, done once):
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/) (with the
+   same Google account as the publisher), create a project and enable the
+   **Chrome Web Store API**.
+2. Configure the OAuth consent screen: type External, app name anything, your
+   email as support and developer contact, add the scope
+   `https://www.googleapis.com/auth/chromewebstore`, add yourself as a test
+   user. Leave the app in Testing mode for personal use.
+3. Create an OAuth client ID of type **Web application** and add this
+   authorized redirect URI:
+   `https://developers.google.com/oauthplayground/oauth2callback`
+4. Open the [OAuth Playground](https://developers.google.com/oauthplayground/),
+   click the gear icon, check "Use your own OAuth credentials", and paste the
+   client ID and secret. In the left panel select scope
+   `https://www.googleapis.com/auth/chromewebstore`, click "Authorize APIs"
+   (sign in with the publisher Google account), then "Exchange authorization
+   code for tokens". Copy the refresh token.
+5. Write the credentials to `~/.config/fb-pfp/cws.env` (chmod 600):
+
+   ```
+   CWS_CLIENT_ID=...
+   CWS_CLIENT_SECRET=...
+   CWS_REFRESH_TOKEN=...
+   CWS_PUBLISHER_ID=...   # from the dashboard Settings page
+   CWS_EXTENSION_ID=...   # the item ID, visible in the dashboard item URL
+   ```
+
+Notes and limits, stated plainly:
+
+- The API cannot create items, only update and publish existing ones. That is
+  why the first upload is manual (the steps above).
+- The old v1 API is shut down on October 15, 2026; the script uses the v2
+  endpoints.
+- Every upload must bump `version` in manifest.json. `make release` refuses
+  to republish the same version unless you pass `--force` through
+  `python3 tools/cws_release.py release --zip <zip> --force`.
+- The script prints secrets never. Keep `cws.env` out of any repository.
+- `python3 tools/cws_release.py status` shows the current store state without
+  changing anything.
+
 ## Honest expectations (read before submitting)
 
 - The extension's purpose is automating a Facebook action. Meta's terms prohibit that kind of automation, and store reviewers can reject or later remove items whose function violates a third-party site's terms, especially after reports. This is a policy risk, not a malware finding.

@@ -21,7 +21,10 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 # Install free test-only packages into a project-local, gitignored environment.
 venv='.verify-venv'
-if python3 -c 'import playwright, PIL' >/dev/null 2>&1; then
+if [ -n "${VERIFY_PYTHON:-}" ]; then
+  python="$VERIFY_PYTHON"
+  "$python" -c 'import playwright, PIL' || { echo 'VERIFY_PYTHON must provide Playwright and Pillow' >&2; exit 2; }
+elif python3 -c 'import playwright, PIL' >/dev/null 2>&1; then
   python='python3'
 else
   if [ ! -x "$venv/bin/python" ]; then python3 -m venv "$venv"; fi

@@ -1,30 +1,34 @@
 # Verification record
 
-Date: 2026-10-11
+Date: 2026-10-12
 Version: 0.2.1
-Status: EXPERIMENTAL SOURCE CANDIDATE
+Status: LOCAL CANDIDATE; LIVE FACEBOOK ACCEPTANCE PENDING
 
-## Checked in the build environment
+## Completed automated checks
 
-- The Manifest V3 declares storage, alarms, and only `https://www.facebook.com/*` host access.
-- Dependency-free unit tests and a static repository hygiene audit have been run.
-- Offline Chromium content-script fixture verifies that review does not click Save.
-- Offline Chromium content-script fixture verifies that explicit Change now clicks Save once and observes dialog closure.
-- Offline Chromium fixture verifies that missing profile-dialog upload inputs stop without using the newsfeed composer.
-- Offline Chromium popup fixture verifies local image import, removal, review, explicit publish confirmation and schedule controls.
-- Package inspection excludes developer photos, workspace paths, credentials and private browser data.
-- A one-command runner (`bash verify.sh --offline`) passed the static, 26 Node unit tests and both Chromium mock tests.
-- The store ZIP generator checks that `manifest.json` is at the root of the ZIP.
+- Static manifest, minimum permissions and repository hygiene audit passed.
+- All 26 dependency-free Node tests passed.
+- All 50 synthetic content regressions passed in installed Chrome and Brave on macOS.
+- Popup import/removal, confirmation, review and schedule controls passed in both browsers.
+- Full Manifest V3 lifecycle passed in Chrome 155.0.8059.40 and Brave 155.1.97.56 using disposable profiles.
+- JPEG, PNG and WebP imported as normalized JPEGs without the synthetic camera metadata.
+- Exact stored photo bytes and rotation history survived popup and browser/service-worker restart.
+- Review left Save and rotation history untouched. Two successful synthetic Saves advanced no-repeat rotation without repeating.
+- An actual alarm prepared the synthetic picture without Save or rotation advancement; disabling the schedule removed the alarm.
+- Delayed/replaced dialogs, ignored/rejected uploads, unrelated gallery images, ambiguous inputs, untrusted input requests, cancellation and incomplete Save closure have regressions.
+- Selected-image sampling supports the tested full previews, resized images, centered square crops and reused canvas forms. Unreadable or unsupported previews stop for manual review.
+- Test browsers map www.facebook.com to local HTTPS fixtures and make other hosts unresolvable. No real account or public avatar was changed.
+- Release packaging checks manifest-at-root, allowlisted runtime files and exclusion of private media, credentials and machine-specific paths.
 
-## Not yet verified
+## Remaining acceptance gates
 
-- Full extension installation, service-worker lifecycle and alarms in a real Brave/Chrome browser on macOS.
-- A new disposable-Playwright-Chromium MV3 extension lifecycle test (`bash verify.sh --full`) was created, but not run successfully in this build environment because a compatible browser could not be installed from the remote download service. Treat as UNVERIFIED, not passed.
-- Live Facebook UI interactions, including the actual account-level final result.
-- Handling of future Facebook A/B layout variations or language changes.
-- Behavior after browser sleep, profile upgrades or service-worker termination.
-- Browser store review or acceptance.
+- The owner must confirm the exact packaged build against real Facebook in Chrome and Brave, including the intended preview and untouched composer.
+- A Save acknowledgement is dialog completion after an explicit click. It does not independently prove Facebook persisted the intended avatar.
+- Any public Save test requires an owner decision and inspection of the resulting profile picture.
+- Browser sleep, future interface variants, profile upgrades and unreadable cropper forms remain outside the verified synthetic cases.
+- The maintainer must reconcile the tested source, public repository, store package, screenshot, listing and privacy policy before review submission.
+- Store acceptance and publication have not occurred as part of this verification.
 
 ## Release rule
 
-Install for local testing first. Do not claim successful unattended publishing or a bug-free production release. Change now must be deliberately enabled each time in the popup, and the user must confirm the result on Facebook.
+Keep publication under the authenticated publisher workflow. Complete live acceptance before submitting the store item. Do not claim zero bugs or automatic verification of the final public avatar.

@@ -2,9 +2,15 @@
 
 ## [0.2.1] - 2026-10-11
 
+- Added selected-image preview checks, guarded upload-input attribution, stable Save acknowledgement, and cancellation handling.
+- Expanded content regressions and actual Chrome/Brave lifecycle checks, including persistent photo bytes and scheduled review.
+
 - Added a one-command verification runner, safe Makefile shortcuts and real-extension synthetic Chromium lifecycle test.
 - Added store submission preparation, privacy and listing guidance.
 - Added reproducible, validated source, sideload and store-root ZIP packaging.
+- Fixed the lifecycle test: it now runs under the extension content-security policy and serves its own local HTTPS fixture for www.facebook.com, with every other host unresolvable.
+- Fixed the upload into Facebook's profile-picture dialog: the dialog is looked up again on every check (Facebook opens it empty and can replace it while its contents load), the file input is taken from the dialog or from the input that the dialog's own Upload photo button makes Facebook click (never a video or post-composer input), and a failure reports element counts only. Pressing an avatar that is an SVG no longer throws.
+- Privacy policy now states that the optional daily review also runs without a click.
 - No change to the real Facebook publishing controls or existing CLI repository.
 
 ## [0.2.0] - 2026-10-11

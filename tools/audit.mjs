@@ -54,9 +54,13 @@ const serviceWorker = readFileSync(join(root,'src/background.mjs'),'utf8');
 const content = readFileSync(join(root,'src/content.js'),'utf8');
 requireCheck(!/\b(?:eval|Function)\s*\(/.test(serviceWorker+content), 'Dynamic execution found');
 requireCheck(/message\.publish !== true/.test(content), 'Review must not click Save');
-requireCheck(/saveIfRequested\(dialog\)/.test(content), 'Explicit publish action missing');
+requireCheck(/await saveIfRequested\(/.test(content), 'Explicit publish action missing');
 requireCheck(/if \(publish\)/.test(serviceWorker), 'Publication gating missing');
-requireCheck(/dialog\.querySelector\('input\[type="file"\]'\)/.test(content), 'File input must remain dialog scoped');
+requireCheck(/dialog\.querySelectorAll\('input\[type="file"\]'\)/.test(content), 'File input must remain dialog scoped');
+// A page-wide query is allowed only to count inputs for the failure message, never to pick one.
+requireCheck(!/document\.querySelector(?:All)?\('input\[type="file"\]'\)(?!\.length)/.test(content), 'Page-wide file input lookup found');
+// An input outside the dialog is used only when the dialog's own "Upload photo" button made Facebook click it, and only if it takes images alone.
+requireCheck(/takesOnlyImages\(progress\.requested\)/.test(content) && /removeEventListener\('click', onClick, true\)/.test(content), 'Captured upload input must be image-only and released');
 requireCheck(/Check the preview/.test(content), 'Content script review notice absent');
 if (errors.length) {
   console.error(`Audit blocked: ${errors.length} issue(s).\n`+errors.join('\n'));

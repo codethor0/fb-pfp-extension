@@ -3,6 +3,12 @@
   'use strict';
 
   const WAIT_MS = 12000;
+  const DIALOG_WAIT_MS = 25000;     // the dialog opens empty; Facebook fills it in afterwards
+  const UPLOAD_SETTLE_MS = 2500;    // a ready dialog may show its file input without any click
+  const PREVIEW_SETTLE_MS = 600;
+  const SAVE_SETTLE_MS = 1500;
+  const SAVE_WAIT_MS = 30000;
+  const BUTTONS = 'button, [role="button"], [role="menuitem"], [role="link"]';
   let working = false;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -21,9 +27,14 @@
   }
 
   function uniqueClick(root, pattern) {
-    const matches = [...root.querySelectorAll('button, [role="button"], [role="menuitem"], [role="link"]')]
-      .filter(el => usableButton(el) && pattern.test(label(el)));
+    const matches = [...root.querySelectorAll(BUTTONS)].filter(el => usableButton(el) && pattern.test(label(el)));
     return matches.length === 1 ? matches[0] : null;
+  }
+
+  function press(element) {
+    // SVG elements have no click(); send the event instead.
+    if (typeof element.click === 'function') element.click();
+    else element.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, view: window}));
   }
 
   async function waitUntil(find, timeout = WAIT_MS) {
@@ -36,20 +47,127 @@
     return null;
   }
 
+  function accessibleName(element) {
+    return String(element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || '').trim();
+  }
+
   function ownAvatar() {
-    // Fail closed on ambiguous matches instead of clicking someone else's image.
-    const images = [...document.querySelectorAll('img[alt], [role="img"][aria-label]')].filter(visible);
-    const exact = images.filter(el => /^(?:your )?profile picture$/i.test(label(el)));
-    if (exact.length === 1) return exact[0];
-    if (exact.length > 1) return null;
-    const fallback = images.filter(el => /^profile picture\b/i.test(label(el)));
+    // The profile header and a small sticky avatar can share a name. Use the large exact match,
+    // including SVG avatars, and stop when there are two comparable large matches.
+    const named = [...document.querySelectorAll('img, [role="img"]')].filter(visible);
+    const exact = named.filter(el => /^(?:your )?profile picture$/i.test(accessibleName(el)))
+      .map(el => ({el, box: el.getBoundingClientRect()}))
+      .filter(({box}) => box.width >= 80 && box.height >= 80)
+      .sort((a, b) => b.box.width * b.box.height - a.box.width * a.box.height);
+    if (exact.length) {
+      const [first, second] = exact;
+      if (second && second.box.width * second.box.height >= 0.9 * first.box.width * first.box.height) return null;
+      return first.el;
+    }
+    // Some profile headers name the control "Profile picture actions". Keep that observed
+    // prefix form only when one large target remains, excluding navigation and named people.
+    const fallback = named.filter(el => /^profile picture\b/i.test(accessibleName(el)) &&
+      !/^profile picture\s+(?:of|for)\b/i.test(accessibleName(el)) && !el.closest('[role="banner"]'))
+      .filter(el => {const box = el.getBoundingClientRect(); return box.width >= 80 && box.height >= 80;});
     return fallback.length === 1 ? fallback[0] : null;
   }
 
-  function profileDialog() {
+  function profileDialogs() {
     const matches = [...document.querySelectorAll('[role="dialog"], dialog')]
       .filter(el => visible(el) && /profile picture/i.test(`${el.getAttribute('aria-label') || ''} ${el.textContent || ''}`));
+    // One dialog can sit inside another; the outermost one holds everything.
+    return matches.filter(el => !matches.some(other => other !== el && other.contains(el)));
+  }
+
+  // Always look the dialog up again: Facebook shows it empty and can replace it while it loads, so an element
+  // found early may be detached by the time its contents are ready.
+  function profileDialog() {
+    const matches = profileDialogs();
     return matches.length === 1 ? matches[0] : null;
+  }
+
+  const IMAGE_TYPE = /^(?:image\/[a-z0-9.+*-]+|\.(?:jpe?g|png|webp|heic|heif|gif|bmp))$/;
+
+  function acceptedTypes(input) {
+    return (input.getAttribute('accept') || '').toLowerCase().split(',').map(item => item.trim()).filter(Boolean);
+  }
+
+  function takesImages(input) {
+    const types = acceptedTypes(input);
+    return !input.disabled && (!types.length || types.some(type => IMAGE_TYPE.test(type)));
+  }
+
+  function takesOnlyImages(input) {
+    const types = acceptedTypes(input);
+    return !input.disabled && types.length > 0 && types.every(type => IMAGE_TYPE.test(type));
+  }
+
+  function dialogInput() {
+    const dialog = profileDialog();
+    const inputs = dialog ? [...dialog.querySelectorAll('input[type="file"]')].filter(takesImages) : [];
+    return inputs.length === 1 ? inputs[0] : null;
+  }
+
+  function uploadButton(dialog) {
+    const matches = [...dialog.querySelectorAll(BUTTONS)].filter(el => usableButton(el) && /^(?:upload|add|choose) photo$/i.test(label(el)));
+    // One control can be wrapped in several nested buttons with the same name; press the innermost.
+    const innermost = matches.filter(el => !matches.some(other => other !== el && el.contains(other)));
+    return innermost.length === 1 ? innermost[0] : null;
+  }
+
+  // "Upload photo" makes Facebook click a file input, which may sit outside the dialog. Watch for that click (and
+  // keep the browser's own file picker from opening) so the input the dialog itself targets is the one used.
+  async function inputFromUploadButton(button, progress) {
+    const onClick = event => {
+      if (!event.isTrusted && event.target instanceof HTMLInputElement && event.target.type === 'file') {
+        event.preventDefault();
+        if (progress.requested && progress.requested !== event.target) progress.ambiguous = true;
+        else progress.requested = event.target;
+      }
+    };
+    window.addEventListener('click', onClick, true);
+    try {
+      // Attribute an external input only to the synchronous Upload-photo handler. Unrelated
+      // user clicks and later page activity must never become the extension's upload target.
+      press(button);
+    } finally {
+      window.removeEventListener('click', onClick, true);
+    }
+    if (progress.ambiguous) throw new Error('Upload photo requested multiple file inputs; stopped safely');
+    return waitUntil(() => {
+      if (!profileDialog()) return null;
+      return progress.requested && progress.requested.isConnected && takesOnlyImages(progress.requested)
+        ? progress.requested : dialogInput();
+    }, WAIT_MS);
+  }
+
+  async function findFileInput(progress) {
+    const deadline = Date.now() + DIALOG_WAIT_MS;
+    let readySince = 0;
+    while (Date.now() < deadline) {
+      const input = dialogInput();
+      if (input) return input;
+      const dialog = profileDialog();
+      const button = dialog && !progress.pressed ? uploadButton(dialog) : null;
+      if (!button) readySince = 0;
+      else if (!readySince) readySince = Date.now();
+      else if (Date.now() - readySince >= UPLOAD_SETTLE_MS) {
+        progress.pressed = true;
+        return inputFromUploadButton(button, progress);
+      }
+      await sleep(200);
+    }
+    return null;
+  }
+
+  function dialogReport(progress) {
+    // Counts only: nothing from the page is copied into the message.
+    const dialogs = profileDialogs();
+    const root = dialogs.length === 1 ? dialogs[0] : null;
+    const count = selector => (root ? root.querySelectorAll(selector).length : 0);
+    return `dialogs ${dialogs.length}, elements ${count('*')}, buttons ${count(BUTTONS)}, file inputs ${count('input[type="file"]')}` +
+      `, on page ${document.querySelectorAll('input[type="file"]').length}, upload pressed ${progress.pressed ? 'yes' : 'no'}` +
+      `, picker requested ${progress.requested ? 'yes' : 'no'}`;
   }
 
   function showNotice(message, error = false) {
@@ -86,24 +204,121 @@
     return bytes;
   }
 
-  async function uploadIntoDialog(bytes) {
+  function previewSource(image) {
+    return image.currentSrc || image.getAttribute('src') || '';
+  }
+
+  function pictureSamples(picture, crop = null) {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      if (crop) ctx.drawImage(picture, crop.x, crop.y, crop.size, crop.size, 0, 0, 32, 32);
+      else ctx.drawImage(picture, 0, 0, 32, 32);
+      const data = ctx.getImageData(0, 0, 32, 32).data;
+      const samples = [];
+      for (const x of [0.25, 0.5, 0.75]) for (const y of [0.25, 0.5, 0.75]) {
+        const offset = (Math.floor(31 * y) * 32 + Math.floor(31 * x)) * 4;
+        samples.push(...data.slice(offset, offset + 4));
+      }
+      return samples;
+    } catch { return null; }
+  }
+
+  function matchesPicture(samples, expectedVariants) {
+    // Allow small decoding, resize and JPEG differences. Unknown/cross-origin pixels fail closed.
+    return samples !== null && expectedVariants.some(expected => samples.length === expected.length &&
+      samples.every((value, index) => Math.abs(value - expected[index]) <= 24));
+  }
+
+  async function expectedPicture(bytes) {
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(new Blob([bytes], {type: 'image/jpeg'}));
+      if (bitmap.width > 1600 || bitmap.height > 1600) throw new Error('Unsupported normalized image dimensions');
+      const samples = pictureSamples(bitmap);
+      if (!samples) throw new Error('Could not read the selected image');
+      const size = Math.min(bitmap.width, bitmap.height);
+      const centered = pictureSamples(bitmap, {x: (bitmap.width - size) / 2, y: (bitmap.height - size) / 2, size});
+      return centered ? [samples, centered] : [samples];
+    } catch {
+      throw new Error('The selected JPEG could not be decoded; no image was uploaded');
+    } finally { bitmap?.close(); }
+  }
+
+  function previewSnapshot(dialog, expected) {
+    return {
+      sources: new Set([...dialog.querySelectorAll('img')].map(previewSource)),
+      canvases: new Map([...dialog.querySelectorAll('canvas')].map(canvas => [canvas, canvasPicture(canvas)])),
+      expected
+    };
+  }
+
+  function readyPreview(dialog, before) {
+    const pictureSized = element => {
+      const box = element.getBoundingClientRect();
+      return visible(element) && box.width >= 80 && box.height >= 80;
+    };
+    const images = [...dialog.querySelectorAll('img')].filter(image => pictureSized(image) &&
+      image.complete && image.naturalWidth > 0 && image.naturalHeight > 0 &&
+      previewSource(image) && !before.sources.has(previewSource(image)) &&
+      matchesPicture(pictureSamples(image), before.expected));
+    const canvases = [...dialog.querySelectorAll('canvas')].filter(canvas => {
+      if (!pictureSized(canvas)) return false;
+      const samples = pictureSamples(canvas);
+      const picture = canvasPicture(canvas, samples);
+      return picture !== null && picture !== before.canvases.get(canvas) && matchesPicture(samples, before.expected);
+    });
+    return images[0] || canvases[0] || null;
+  }
+
+  function canvasPicture(canvas, samples = pictureSamples(canvas)) {
+    const opaque = samples?.some((value, index) => index % 4 === 3 && value > 0);
+    return opaque ? `${canvas.width}x${canvas.height}:${samples.join(',')}` : null;
+  }
+
+  function dialogBusy(dialog) {
+    return [...dialog.querySelectorAll('[aria-busy="true"], [role="progressbar"]')].some(visible);
+  }
+
+  function dialogError(dialog) {
+    return [...dialog.querySelectorAll('[role="alert"]')].some(visible);
+  }
+
+  async function waitForPreview(before) {
+    const deadline = Date.now() + DIALOG_WAIT_MS;
+    let readySince = 0;
+    let lastPreview = null;
+    while (Date.now() < deadline) {
+      const dialog = profileDialog();
+      if (dialog && dialogError(dialog)) throw new Error('Facebook reported an upload problem; no automatic Save attempted');
+      const preview = dialog && !dialogBusy(dialog) ? readyPreview(dialog, before) : null;
+      if (!preview || preview !== lastPreview) readySince = 0;
+      if (preview && !readySince) readySince = Date.now();
+      lastPreview = preview;
+      if (readySince && Date.now() - readySince >= PREVIEW_SETTLE_MS) return;
+      await sleep(200);
+    }
+    throw new Error('Could not verify the selected picture in the preview; no automatic Save attempted. Check the preview and Save manually if correct.');
+  }
+
+  async function uploadIntoDialog(bytes, expected) {
     const avatar = await waitUntil(ownAvatar);
     if (!avatar) throw new Error('Could not uniquely identify your own profile picture. Check the English Facebook UI.');
-    (avatar.closest('button, [role="button"]') || avatar).click();
+    press(avatar.closest('button, [role="button"]') || avatar);
 
     const chooser = await waitUntil(() => uniqueClick(document, /^(?:choose|update) profile picture$/i));
     if (!chooser) throw new Error('Choose profile picture action was not uniquely identified');
-    chooser.click();
+    press(chooser);
 
-    const dialog = await waitUntil(profileDialog);
-    if (!dialog) throw new Error('Profile-picture dialog did not open; no image was uploaded');
-    let input = await waitUntil(() => dialog.querySelector('input[type="file"]'), 4000);
-    if (!input) {
-      const uploadButton = uniqueClick(dialog, /^(?:upload|add|choose) photo$/i);
-      if (uploadButton) uploadButton.click();
-      input = await waitUntil(() => dialog.querySelector('input[type="file"]'), 8000);
-    }
-    if (!input) throw new Error('No file input inside the profile-picture dialog; stopped safely');
+    if (!await waitUntil(profileDialog)) throw new Error('Profile-picture dialog did not open; no image was uploaded');
+    const progress = {pressed: false, requested: null};
+    const input = await findFileInput(progress);
+    if (!input) throw new Error(`No file input inside the profile-picture dialog; stopped safely (${dialogReport(progress)})`);
+    const dialog = profileDialog();
+    if (!dialog || !input.isConnected) throw new Error('The profile-picture dialog changed before upload; try again');
+    const before = previewSnapshot(dialog, expected);
     const file = new File([bytes], 'profile-photo.jpg', {type: 'image/jpeg'});
     const transfer = new DataTransfer();
     transfer.items.add(file);
@@ -113,26 +328,62 @@
     if (input.files?.length !== 1 || input.files[0].size !== bytes.length) {
       throw new Error('Facebook did not receive the selected image file');
     }
-    return dialog;
+    await waitForPreview(before);
+    return before;
   }
 
-  async function saveIfRequested(dialog) {
+  async function saveIfRequested(before) {
     // Intermediate steps vary by Facebook UI version. All clicks stay dialog scoped.
-    await sleep(1500);
-    let save = uniqueClick(dialog, /^save(?: changes)?$/i);
+    const inDialog = (pattern) => () => {
+      const dialog = profileDialog();
+      return dialog && !dialogBusy(dialog) && !dialogError(dialog) && readyPreview(dialog, before)
+        ? uniqueClick(dialog, pattern) : null;
+    };
+    const findSave = inDialog(/^save(?: changes)?$/i);
+    const findNext = inDialog(/^(?:select photo|next)$/i);
+    let save = findSave();
     for (let attempt = 0; !save && attempt < 2; attempt++) {
-      const next = uniqueClick(dialog, /^(?:select photo|next)$/i);
+      const next = findNext();
       if (!next) break;
-      next.click();
-      await sleep(700);
-      save = uniqueClick(dialog, /^save(?: changes)?$/i);
+      press(next);
+      save = await waitUntil(findSave);
     }
-    if (!save) save = await waitUntil(() => uniqueClick(dialog, /^save(?: changes)?$/i));
+    if (!save) save = await waitUntil(findSave);
     if (!save) throw new Error('Save button did not become available; no automatic Save attempted');
-    save.click();
-    const closed = await waitUntil(() => (!dialog.isConnected || !visible(dialog)) && true, 30000);
-    if (!closed) throw new Error('Save was clicked but dialog did not close; result is unknown');
-    return {ok: true, saved: true, stage: 'save-click-acknowledged'};
+    let cancelled = false;
+    const onCancel = event => {
+      if (event.type === 'keydown' && event.key === 'Escape' &&
+        [...document.querySelectorAll('[role="dialog"], dialog')].some(visible)) cancelled = true;
+      const control = event.target instanceof Element ? event.target.closest(BUTTONS) : null;
+      const dialog = control?.closest('[role="dialog"], dialog');
+      if (event.type === 'click' && control && visible(dialog) && /^(?:cancel|close|discard(?: changes)?)$/i.test(label(control))) cancelled = true;
+    };
+    window.addEventListener('click', onCancel, true);
+    window.addEventListener('keydown', onCancel, true);
+    try {
+      // Re-check after installing listeners; never click a detached or superseded Save control.
+      if (findSave() !== save) throw new Error('The picture preview changed before Save; try again');
+      press(save);
+      const deadline = Date.now() + SAVE_WAIT_MS;
+      let closedSince = 0;
+      while (Date.now() < deadline) {
+        if (cancelled) throw new Error('Save was clicked but the dialog was cancelled; result is unknown. Verify Facebook.');
+        const dialog = profileDialog();
+        if (dialog && dialogError(dialog)) throw new Error('Facebook reported a problem after Save; result is unknown. Verify Facebook.');
+        // An unlabeled replacement shell is still a dialog. A brief removal during rendering is not acknowledgement.
+        const anyDialog = [...document.querySelectorAll('[role="dialog"], dialog')].some(visible);
+        if (anyDialog) closedSince = 0;
+        else if (!closedSince) closedSince = Date.now();
+        else if (Date.now() - closedSince >= SAVE_SETTLE_MS) {
+          return {ok: true, saved: true, stage: 'save-click-acknowledged'};
+        }
+        await sleep(200);
+      }
+      throw new Error('Save was clicked but the dialog did not finish closing; result is unknown. Verify Facebook.');
+    } finally {
+      window.removeEventListener('click', onCancel, true);
+      window.removeEventListener('keydown', onCancel, true);
+    }
   }
 
   async function run(message) {
@@ -141,12 +392,13 @@
       throw new Error('Invalid image metadata');
     }
     const bytes = decodeBytes(message.data);
-    const dialog = await uploadIntoDialog(bytes);
+    const expected = await expectedPicture(bytes);
+    const before = await uploadIntoDialog(bytes, expected);
     if (message.publish !== true) {
       showNotice('fb-pfp: Picture prepared. Check the preview, then click Save yourself.');
       return {ok: true, saved: false, stage: 'review'};
     }
-    const result = await saveIfRequested(dialog);
+    const result = await saveIfRequested(before);
     showNotice('fb-pfp: Save acknowledged by the Facebook dialog. Verify your profile picture.');
     return result;
   }

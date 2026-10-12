@@ -27,7 +27,7 @@ def main():
     css = (ROOT / 'src/popup.css').read_text()
     # Exercise production image normalization in a real Chromium DOM. Substitute
     # only persistence and Chrome runtime messaging, which require an extension origin.
-    images = (ROOT / 'src/images.mjs').read_text().replace('export ', '')
+    images = re.sub(r'export ', '', (ROOT / 'src/images.mjs').read_text())
     popup = (ROOT / 'src/popup.mjs').read_text()
     popup = re.sub(r'^import .+?;\s*$', '', popup, flags=re.MULTILINE)
     prefix = '''
@@ -36,6 +36,7 @@ def main():
       async function savePhoto(p){__photos.push(p);return p.id;}
       async function deletePhoto(id){const i=__photos.findIndex(p=>p.id===id); if(i>=0)__photos.splice(i,1);}
       if(!crypto.randomUUID) crypto.randomUUID=()=> '00000000-0000-4000-8000-000000000000';
+      window.chrome = window.chrome || {};
       window.chrome.runtime={async sendMessage(message){
         if(message.type==='GET_SETTINGS')return {ok:true,settings:{mode:'cycle',scheduleEnabled:false,scheduleTime:'09:15',lastResult:'Ready.'}};
         if(message.type==='SAVE_SETTINGS')return {ok:true,settings:message.settings};
@@ -56,7 +57,7 @@ def main():
             page.set_content(html)
             page.add_style_tag(content=css)
             page.add_script_tag(content=prefix + images + '\n' + popup)
-            page.wait_for_function("document.querySelector('#status').textContent.includes('Ready.')")
+            page.wait_for_function("document.querySelector('#prepare').disabled === true")
             assert page.locator('#count').text_content().strip() == '0 / 20'
             assert page.locator('#prepare').is_disabled()
             page.locator('#picker').set_input_files({'name':'test-image.jpg','mimeType':'image/jpeg','buffer':jpeg()})

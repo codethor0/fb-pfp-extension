@@ -49,7 +49,7 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Limitations
 
-Facebook changes its interface regularly, so selectors may need maintenance. The current flow uses English UI labels, the `www.facebook.com` origin and the profile-picture dialog. A missing or ambiguous target stops the run. The current smoke tests operate on synthetic web pages, not on live Facebook. The full browser-extension lifecycle and account-level publication must be verified manually before announcing production readiness.
+Facebook changes its interface regularly, so selectors may need maintenance. The current flow uses English UI labels, the `www.facebook.com` origin and the profile-picture dialog. A missing or ambiguous target stops the run. Before reporting Ready for review or attempting Save, it checks that a loaded preview matches samples from the selected image. Unknown, unreadable or unsupported previews stop with manual review guidance. Automated Chrome and Brave lifecycle tests use synthetic pages; live Facebook and the final public avatar still require owner verification.
 
 This extension is not affiliated with, endorsed by, or sponsored by Meta Platforms, Inc. Automating Facebook may conflict with its service terms; use it on your own account at your own risk.
 
@@ -61,7 +61,7 @@ With Node.js 20+ and Python 3 installed, run **one command**:
 bash verify.sh --full
 ```
 
-It runs static security checks, 26 dependency-free unit tests, offline Chromium mock-page tests, and an additional real Manifest V3 lifecycle test using an isolated, temporary Playwright Chromium profile. It installs free, test-only Python packages and Playwright Chromium locally when needed. No Facebook connection, browser credentials, Git push or profile-picture Save occurs.
+It runs static security checks, 26 dependency-free unit tests, 50 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
 
 ```bash
 bash verify.sh --offline    # Run mock-page tests without extension-worker lifecycle
@@ -71,7 +71,7 @@ python3 tools/build_release.py --out dist
 
 Makefile shortcuts are `make quick`, `make test`, `make verify` and `make package`. They never act on real Facebook, call the separate CLI, commit code or publish a release.
 
-A **full test must report PASS**, not SKIP, before claiming extension lifecycle verification. Chromium versions supplied by operating systems may not load unpacked extensions through test flags, so leave `CHROMIUM_PATH` unset for the supported Playwright Chromium. These tests are not a substitute for a real Mac test against your own Facebook account, which requires an authenticated browser and user authorization. See [VERIFICATION.md](VERIFICATION.md).
+A **full test must report PASS**, not SKIP, before claiming extension lifecycle verification. Leave `CHROMIUM_PATH` unset for bundled Playwright Chromium, or set it to your installed Chrome or Brave executable. Branded Chrome uses pipe-only extension loading in the disposable profile. `VERIFY_PYTHON` may select an existing Python with Playwright and Pillow. These tests do not replace a test against your own Facebook account. See [VERIFICATION.md](VERIFICATION.md).
 
 ## Releasing
 

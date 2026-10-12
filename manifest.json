@@ -1,12 +1,24 @@
 {
   "manifest_version": 3,
-  "name": "fb-pfp: Profile Picture Cycler",
-  "version": "0.1.0",
-  "description": "Change your Facebook profile picture from images you choose. Local-only, open source, no tracking.",
-  "permissions": ["storage", "unlimitedStorage", "scripting", "activeTab"],
-  "host_permissions": ["*://www.facebook.com/*"],
+  "name": "fb-pfp: Profile Picture Rotator",
+  "short_name": "fb-pfp",
+  "description": "Review or change your own Facebook profile picture using local photos. No accounts, servers, or tracking.",
+  "version": "0.2.1",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.facebook.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.mjs",
+    "type": "module"
+  },
   "action": {
-    "default_popup": "popup.html",
+    "default_title": "fb-pfp Local Rotator",
+    "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -17,5 +29,20 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
 }

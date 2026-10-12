@@ -1,52 +1,84 @@
-# fb-pfp: Profile Picture Cycler (browser extension)
+# fb-pfp: Browser Profile Picture Rotator
 
-A small, open-source browser extension that changes your Facebook profile picture from a set of images you pick. Local only: no accounts, no servers, no analytics, no tracking. Everything happens in your own browser, and the only network destination is facebook.com itself.
+A free, open-source Chrome and Brave extension that uses photos you choose to prepare or change your own Facebook profile picture. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-MIT licensed, free forever. Not published to browser stores: install it yourself in under two minutes (below).
+**Version:** 0.2.1 experimental source candidate. Live Facebook and macOS Brave/Chrome acceptance testing is pending. No browser-store listing or bug-free guarantee is claimed.
 
-## How it works
+## Features
 
-1. Click the extension icon and pick two or more images. They are stored inside your browser's local storage.
-2. Click "Dry run" to upload the chosen image into Facebook's profile-picture dialog and stop before Save. Nothing is published.
-3. Click "Change profile picture now" to do it for real. One image is chosen at random, with no repeats until every image has been used.
-4. The extension drives the "Choose profile picture" dialog in a normal tab, clicks Save, and reports success only after the dialog closes.
+- **Prepare for review** opens your Facebook profile-picture dialog and loads a selected photo without clicking Save.
+- **Change profile picture now** requires an explicit checkbox and button click. It attempts to click Save inside the profile-picture dialog, then waits for the dialog to close. Verify the result on Facebook.
+- **Rotation** selects randomly or avoids repeating photos after acknowledged Save actions until all have been selected.
+- **Daily review** can prepare a photo at a chosen local time when your browser is running. A scheduled run never clicks Save.
+- **Private photo library** holds up to 20 locally imported JPEG, PNG or WebP pictures. Each original image must be 8 MB or smaller.
+- **On-device processing** converts images to JPEG at up to 1600 pixels, stripping embedded EXIF/GPS metadata. Transparent areas become white.
+- **No cloud backend** and no data sent to the developer. Only Chrome/Brave and the Facebook site handle your pictures.
 
-## Install (Brave or Chrome, sideload)
+## Install for free (Chrome or Brave)
 
-1. Download or clone this repository.
-2. Open `brave://extensions` (or `chrome://extensions`).
-3. Turn on **Developer mode** (top right).
-4. Click **Load unpacked** and select this folder.
-5. Pin the extension, pick images, and run a dry run first.
+1. Extract the install ZIP into a permanent folder, such as `~/Projects/fb-pfp-extension`.
+2. Open `brave://extensions` in Brave or `chrome://extensions` in Chrome.
+3. Enable **Developer mode** in the extensions page.
+4. Select **Load unpacked**, then choose the extracted folder containing `manifest.json`.
+5. Pin **fb-pfp** in the browser toolbar. Sign in to Facebook normally in the same browser, using the English-language interface.
+6. Open the extension, select **Add local pictures**, and import your test photos.
+7. Press **Prepare for review** first. Check that the photo reaches the actual profile-picture dialog, not a post composer.
+8. Only after verifying the review flow, check the acknowledgment box and press **Change profile picture now** if you want to publish immediately.
 
-## Safety design
+Chrome and Brave require the Load unpacked interaction. A command-line script or a separate agent cannot reliably and silently install an unpacked extension into a normal existing browser profile. Your local operator may complete the browser UI steps with your approval.
 
-- The file input is only ever touched inside the profile-picture dialog, never page-wide, so an upload cannot land in a post draft.
-- Elements are found by their visible text, not generated class names.
-- An image counts as used only after the change succeeds; a failed run does not consume it.
-- No credentials are read, stored or sent. The extension never talks to anything except the facebook.com tab it drives.
+If an earlier unpacked fb-pfp extension is installed, disable the old copy before loading this build. Data stored under a different extension ID will not migrate automatically. Re-import photos as needed.
+
+## Rotation and scheduling
+
+Select **No repeats after successful Save** or **Random**, then click **Save preferences**. Preparing for review does not advance the rotation. Change now advances it only after the automation receives the Save dialog's closure acknowledgement. This acknowledgement is not independent proof that Facebook published the intended pixels, so confirm the result in your profile.
+
+For optional scheduled preparation, enable **Prepare the picture dialog daily**, choose the local time, and save preferences. The browser must be running. Sleeping or closed browsers cannot guarantee exact execution. Scheduled preparation never publishes automatically.
+
+## Security and privacy
+
+- Permissions: `storage`, `alarms`, and restricted access to `https://www.facebook.com/*`.
+- No browser debugging port, password, token or cookie collection.
+- Files are stored locally in the browser's extension IndexedDB. Rotation settings are in extension-only Chrome storage.
+- Each staged image is handed to a Facebook file input scoped to the profile-picture dialog. Facebook may receive the image **before** Save is clicked.
+- Only the user-triggered Change now action may click Save, and only inside the matching dialog.
+- The extension never intentionally uploads a file through the newsfeed composer.
+- No analytics, third-party JavaScript, advertisements, external telemetry or paid APIs.
+
+See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Limitations
 
-- Facebook changes its pages without notice; if the dialog labels change, a run can fail with "did not appear". Open an issue with what you saw.
-- Images live in browser storage. Very large sets may hit browser storage limits; a handful of photos is the intended use.
-- Automating Facebook may conflict with Meta's terms of service. Use it on an account you own, at your own risk. This is why the extension is sideloaded rather than store-distributed.
+Facebook changes its interface regularly, so selectors may need maintenance. The current flow uses English UI labels, the `www.facebook.com` origin and the profile-picture dialog. A missing or ambiguous target stops the run. The current smoke tests operate on synthetic web pages, not on live Facebook. The full browser-extension lifecycle and account-level publication must be verified manually before announcing production readiness.
 
-## Disclaimer
+This extension is not affiliated with, endorsed by, or sponsored by Meta Platforms, Inc. Automating Facebook may conflict with its service terms; use it on your own account at your own risk.
 
-Not affiliated with, endorsed by, or sponsored by Meta Platforms, Inc. Facebook is a trademark of Meta Platforms, Inc.
+## Development and verification
 
-## Development
-
-The content script is covered by an end-to-end test that runs it against a mock of the Facebook dialog (no real Facebook, no account needed):
+With Node.js 20+ and Python 3 installed, run **one command**:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python tests/test_content.py
+bash verify.sh --full
 ```
 
-Bug reports and pull requests are welcome.
+It runs static security checks, 26 dependency-free unit tests, offline Chromium mock-page tests, and an additional real Manifest V3 lifecycle test using an isolated, temporary Playwright Chromium profile. It installs free, test-only Python packages and Playwright Chromium locally when needed. No Facebook connection, browser credentials, Git push or profile-picture Save occurs.
+
+```bash
+bash verify.sh --offline    # Run mock-page tests without extension-worker lifecycle
+bash verify.sh --quick      # Node static checks and unit tests only
+python3 tools/build_release.py --out dist
+```
+
+Makefile shortcuts are `make quick`, `make test`, `make verify` and `make package`. They never act on real Facebook, call the separate CLI, commit code or publish a release.
+
+A **full test must report PASS**, not SKIP, before claiming extension lifecycle verification. Chromium versions supplied by operating systems may not load unpacked extensions through test flags, so leave `CHROMIUM_PATH` unset for the supported Playwright Chromium. These tests are not a substitute for a real Mac test against your own Facebook account, which requires an authenticated browser and user authorization. See [VERIFICATION.md](VERIFICATION.md).
+
+## Releasing
+
+Keep the existing Python CLI repository separate. Publish extensions from the maintainer's authenticated `codethor0` workflow, after passing CI, the privacy scan, and the manual acceptance checklist. Development workspaces, local paths, personal photos, private screenshots and tooling transcripts do not belong in the public repo. Do not rewrite existing release history without a separate documented decision.
+
+The source may be released for free on GitHub. Chrome Web Store registration requires a one-time developer fee (typically USD $5) and acceptance is not guaranteed. A real account acceptance test and a separate review of platform terms must precede public publication. For more information, see [docs/chrome-web-store.md](docs/chrome-web-store.md), [docs/distribution.md](docs/distribution.md), and [docs/release-checklist.md](docs/release-checklist.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Copyright 2026 codethor0.

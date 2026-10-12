@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>fb-pfp</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand"><img src="../icons/icon48.png" alt="" width="40" height="40">
+        <div><h1>fb-pfp</h1><p>Local profile photo rotator</p></div>
+      </div>
+      <span class="version">v0.2.1</span>
+    </header>
+    <div class="notice"><strong>Control what gets published.</strong> Prepare opens the picture dialog without saving. Change now explicitly clicks Save on Facebook.</div>
+    <section>
+      <h2>1. Your pictures <span id="count">0 / 20</span></h2>
+      <p class="muted">Choose JPEG, PNG or WebP photos. Processing stays on your device and removes camera metadata.</p>
+      <label class="file-select" for="picker">Add local pictures</label>
+      <input id="picker" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple>
+      <ul id="photos" aria-label="Stored pictures"></ul>
+    </section>
+    <section>
+      <h2>2. Picture rotation</h2>
+      <label for="mode">Choose a picture</label>
+      <select id="mode"><option value="cycle">No repeats after successful Save</option><option value="random">Random (repeats allowed)</option></select>
+      <p class="muted">Preparing for review does not consume a picture. A Save acknowledgement advances the rotation.</p>
+      <button id="prepare" class="primary" type="button">Prepare for review</button>
+      <label class="toggle warning"><input id="confirm-publish" type="checkbox"> I understand Change now will update my public profile picture.</label>
+      <button id="publish" class="publish" type="button" disabled>Change profile picture now</button>
+      <p class="muted">Save happens only after you check the box and press Change now. Confirm the result on Facebook afterward.</p>
+    </section>
+    <section>
+      <h2>3. Optional daily review</h2>
+      <label class="toggle"><input type="checkbox" id="schedule"> Prepare the picture dialog daily</label>
+      <div class="schedule-row"><label for="time">Local time</label><input id="time" type="time" value="09:15"></div>
+      <button id="save" type="button">Save preferences</button>
+      <p class="muted">The browser must be open. A scheduled run never clicks Save.</p>
+    </section>
+    <p id="status" role="status" aria-live="polite">Ready.</p>
+    <footer><span>No telemetry</span><span>Use only on an account you own</span></footer>
+  </main>
+  <script type="module" src="popup.mjs"></script>
+</body>
+</html>

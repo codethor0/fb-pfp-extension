@@ -1,6 +1,7 @@
 # Privacy Policy for fb-pfp
 
 Effective date: October 11, 2026
+Last updated: October 12, 2026
 
 fb-pfp ("the extension") is an open-source browser extension that helps you
 prepare or change the profile picture on your own Facebook account using
@@ -47,7 +48,8 @@ associate it with.
   choose.
 - Host permission for www.facebook.com: the only site the extension can
   touch. The content script operates the profile-picture dialog there only
-  after you click the extension.
+  when you run Prepare for review or Change now from the extension, or when
+  the optional daily review that you enable runs.
 
 ## Data retention and deletion
 

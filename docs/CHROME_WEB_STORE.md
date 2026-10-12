@@ -81,3 +81,5 @@ Notes and limits, stated plainly:
 - Icons present in all three sizes; manifest version bumped.
 - One live dry-run against your real Facebook passed.
 - Meta non-affiliation disclaimer visible in the store description.
+- Privacy policy published (PRIVACY.md in this repository); the Privacy tab
+  points to `https://github.com/codethor0/fb-pfp-extension/blob/main/PRIVACY.md`.

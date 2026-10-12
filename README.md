@@ -1,8 +1,13 @@
 # fb-pfp: Browser Profile Picture Rotator
 
+[![CI](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.2.1-green.svg)](CHANGELOG.md)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dfehebmpdngoaemfiigjndoecobjgldl.svg)](https://chromewebstore.google.com/detail/dfehebmpdngoaemfiigjndoecobjgldl)
+
 A free, open-source Chrome and Brave extension that uses photos you choose to prepare or change your own Facebook profile picture. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-**Version:** 0.2.1 experimental source candidate. Live Facebook and macOS Brave/Chrome acceptance testing is pending. No browser-store listing or bug-free guarantee is claimed.
+**Version:** 0.2.1. The full automated battery (58 checks) passes from a clean clone, and the review flow has been verified against a live Facebook account. A Chrome Web Store listing is being submitted; approval is up to Google.
 
 ## Features
 
@@ -78,6 +83,15 @@ A **full test must report PASS**, not SKIP, before claiming extension lifecycle 
 Keep the existing Python CLI repository separate. Publish extensions from the maintainer's authenticated `codethor0` workflow, after passing CI, the privacy scan, and the manual acceptance checklist. Development workspaces, local paths, personal photos, private screenshots and tooling transcripts do not belong in the public repo. Do not rewrite existing release history without a separate documented decision.
 
 The source may be released for free on GitHub. Chrome Web Store registration requires a one-time developer fee (typically USD $5) and acceptance is not guaranteed. A real account acceptance test and a separate review of platform terms must precede public publication. For more information, see [docs/chrome-web-store.md](docs/chrome-web-store.md), [docs/distribution.md](docs/distribution.md), and [docs/release-checklist.md](docs/release-checklist.md).
+
+## Support the project
+
+fb-pfp is free, MIT-licensed, and has no ads, analytics, or paid tiers. If it saves you time, you can sponsor development:
+
+- **GitHub Sponsors:** [github.com/sponsors/codethor0](https://github.com/sponsors/codethor0) (one-time or monthly, any amount)
+- **Issues and feedback:** [github.com/codethor0/fb-pfp-extension/issues](https://github.com/codethor0/fb-pfp-extension/issues) (always free)
+
+Sponsoring is optional and changes nothing about the extension: no features are paywalled and no data is collected either way.
 
 ## License
 

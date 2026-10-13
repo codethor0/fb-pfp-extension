@@ -8,7 +8,9 @@
 - Rotation settings updates are serialized, so overlapping runs cannot lose rotation state.
 - A scheduled daily review opens the Facebook tab in the background. Tabs opened by your own clicks stay in the foreground.
 - Documented that runs intentionally leave the Facebook tab open for your inspection.
-- Added regressions for the unconfirmed Save outcome, unknown message senders and accept-less file inputs. The full battery now passes 60 checks from a clean clone.
+- Added regressions for the unconfirmed Save outcome, unknown message senders and accept-less file inputs. The full battery now passes 61 checks from a clean clone.
+- Fixed a live-site false negative: Facebook clears the file input right after reading it, which made every successful upload report "Facebook did not receive the selected image file". Acceptance is now proven only by the preview check that gates Save. Verified against the owner's live account with the 0.2.2 build.
+- Known limitation: on the live cropper Facebook re-encodes the staged photo and serves it from its CDN, so the pixel-match gate can decline automatic Save conservatively. The run stops fail-safe with manual Save guidance; Prepare for review is unaffected.
 - Added `tools/store_resubmit.py` to replace a staged store package and resubmit for review through the maintainer's own signed-in browser once a pending review unlocks the package tab.
 - PNG dimensions are now read from the IHDR chunk before decoding, and a 64 MP pixel budget backstops every decoded image, closing the decompression-bomb gap in photo import.
 

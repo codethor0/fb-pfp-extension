@@ -8,7 +8,7 @@ Status: STORE REVIEW PENDING; LIVE REVIEW FLOW VERIFIED ON OWNER ACCOUNT
 
 - Static manifest, minimum permissions and repository hygiene audit passed.
 - All 34 dependency-free Node tests passed.
-- All 52 synthetic content regressions passed in installed Chrome and Brave on macOS.
+- All 53 synthetic content regressions passed in installed Chrome and Brave on macOS.
 - Popup import/removal, confirmation, review and schedule controls passed in both browsers.
 - Full Manifest V3 lifecycle passed in Chrome 155.0.8059.40 and Brave 155.1.97.56 using disposable profiles.
 - JPEG, PNG and WebP imported as normalized JPEGs without the synthetic camera metadata.
@@ -26,6 +26,8 @@ Status: STORE REVIEW PENDING; LIVE REVIEW FLOW VERIFIED ON OWNER ACCOUNT
 - On 2026-10-12 the packaged build was loaded into the owner's Brave session and run against the owner's real Facebook account with the English interface.
 - Prepare for review opened the real profile-picture dialog with the selected library photo loaded in the cropper. The post composer was untouched and Save was never clicked.
 - The dialog was dismissed without changes; the public profile picture was confirmed unchanged afterwards.
+- On 2026-10-12 the 0.2.2 build was side-loaded into Brave, imported two photos, and ran Prepare for review on the live account: the dialog staged the selected photo, the false "did not receive the selected image file" status was fixed and did not recur, and the dialog was discarded with the profile picture confirmed unchanged. Save was never clicked.
+- On the live cropper, Facebook re-encodes and re-serves the staged photo (1152 x 1152 from their CDN at test time), so the pixel-match gate conservatively declined automatic Save on the real account. This is fail-safe by design: it never clicks Save on an unverified preview and tells the user to check the cropper and Save manually. Synthetic Save flows with exact, resized, cropped and canvas previews still pass.
 
 ## Remaining acceptance gates
 

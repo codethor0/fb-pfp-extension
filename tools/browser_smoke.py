@@ -58,6 +58,7 @@ LAYOUTS = {
 }
 CHANGES = {
     'accepted': 'preview(file);',
+    'clearing-input': "e.target.value='';preview(file);",
     'delayed': 'setTimeout(()=>preview(file),1700);',
     'ignored': '',
     'rejected': "document.querySelector('[role=\"dialog\"]').insertAdjacentHTML('beforeend','<p role=\"alert\">Upload failed</p>');",
@@ -158,6 +159,13 @@ def main():
                 assert page.evaluate('window.__changed') == ['target']
                 page.close()
                 print('PASS:', 'explicit Save acknowledged once' if publish else 'loaded preview reviewed without Save')
+
+            reply, page = run(fixture(change='clearing-input'))
+            assert reply.get('ok') is True and reply.get('saved') is False, reply
+            assert page.evaluate('window.__changed') == ['target']
+            assert page.locator('#composer').evaluate('e=>e.files.length') == 0
+            page.close()
+            print('PASS: an upload handler that clears the input after reading still counts as delivered')
 
             for layout in ('slow-content', 'replaced-shell', 'portal-input', 'nested-upload'):
                 reply, page = run(fixture(layout=layout, avatar=AVATAR_SVG if layout == 'slow-content' else AVATAR_IMG))

@@ -7,7 +7,7 @@
 
 A free, open-source Chrome and Brave extension that uses photos you choose to prepare or change your own Facebook profile picture. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-**Version:** 0.2.2. The full automated battery (60 checks) passes from a clean clone, and the review flow has been verified against a live Facebook account. The Chrome Web Store listing was submitted for review on October 12, 2026 and will publish automatically once approved; approval time is up to Google.
+**Version:** 0.2.2. The full automated battery (61 checks) passes from a clean clone, and the review flow has been verified against a live Facebook account. The Chrome Web Store listing was submitted for review on October 12, 2026 and will publish automatically once approved; approval time is up to Google.
 
 ## Features
 
@@ -54,7 +54,7 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Limitations
 
-Facebook changes its interface regularly, so selectors may need maintenance. The current flow uses English UI labels, the `www.facebook.com` origin and the profile-picture dialog. A missing or ambiguous target stops the run. Before reporting Ready for review or attempting Save, it checks that a loaded preview matches samples from the selected image. Unknown, unreadable or unsupported previews stop with manual review guidance. Automated Chrome and Brave lifecycle tests use synthetic pages; live Facebook and the final public avatar were verified on the owner account for the review flow, and the store listing was submitted for review on 2026-10-12.
+Facebook changes its interface regularly, so selectors may need maintenance. The current flow uses English UI labels, the `www.facebook.com` origin and the profile-picture dialog. A missing or ambiguous target stops the run. Before reporting Ready for review or attempting Save, it checks that a loaded preview matches samples from the selected image. On the live site Facebook re-encodes the staged photo and serves it back from its own CDN, so this pixel-match gate can conservatively decline automatic Save; when it cannot verify the preview it stops and asks you to check the cropper and Save manually, and it never clicks Save on an unverified preview. Unknown, unreadable or unsupported previews stop with manual review guidance. Automated Chrome and Brave lifecycle tests use synthetic pages; live Facebook and the final public avatar were verified on the owner account for the review flow, and the store listing was submitted for review on 2026-10-12.
 
 This extension is not affiliated with, endorsed by, or sponsored by Meta Platforms, Inc. Automating Facebook may conflict with its service terms; use it on your own account at your own risk.
 

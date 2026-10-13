@@ -324,9 +324,11 @@
     input.files = transfer.files;
     input.dispatchEvent(new Event('input', {bubbles: true}));
     input.dispatchEvent(new Event('change', {bubbles: true}));
-    if (input.files?.length !== 1 || input.files[0].size !== bytes.length) {
-      throw new Error('Facebook did not receive the selected image file');
-    }
+    // Do not re-check input.files here: Facebook reads the file during the
+    // change dispatch and clears the input immediately, which made a fully
+    // successful upload report "did not receive the selected image file" on
+    // the live site. Acceptance is proven by waitForPreview below, which
+    // refuses any Save until the dialog renders the selected photo.
     await waitForPreview(before);
     return before;
   }

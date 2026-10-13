@@ -2,7 +2,7 @@
 
 ## Supported release
 
-Version 0.2.2 completed the automated battery (60 checks from a clean clone) and the live review-flow acceptance test on the owner account on 2026-10-12. A public Save test remains an explicit owner decision. Only the latest source release receives planned fixes.
+Version 0.2.2 completed the automated battery (61 checks from a clean clone) and the live review-flow acceptance test on the owner account on 2026-10-12. A public Save test remains an explicit owner decision. Only the latest source release receives planned fixes.
 
 ## Security boundaries
 

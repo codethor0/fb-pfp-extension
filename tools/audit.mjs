@@ -34,7 +34,7 @@ function walk(directory) {
   });
 }
 const paths = walk(root);
-const allowedBinary = /^icons\/icon(?:16|48|128)\.png$/;
+const allowedBinary = /^(?:icons\/icon(?:16|48|128)\.png|docs\/demo\.gif|docs\/screenshot-[a-z]+\.png)$/;
 const imagePattern = /\.(?:png|jpe?g|webp|heic|gif|mp4|mov|zip|pdf|pem|key)$/i;
 const textPattern = /\.(?:js|mjs|json|md|css|html|yml|yaml|txt|py)$|^LICENSE$|^Makefile$|^\.gitignore$/i;
 for (const path of paths) {

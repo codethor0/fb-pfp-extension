@@ -11,6 +11,8 @@ A free, open-source Chrome and Brave extension that uses photos you choose to pr
 
 ## Features
 
+![Demo: pick photos, stage the dialog, verify, save](docs/demo.gif)
+
 - **Prepare for review** opens your Facebook profile-picture dialog and loads a selected photo without clicking Save.
 - **Change profile picture now** requires an explicit checkbox and button click. It attempts to click Save inside the profile-picture dialog, then waits for the dialog to close. Verify the result on Facebook.
 - **Rotation** selects randomly or avoids repeating photos after acknowledged Save actions until all have been selected.
@@ -18,6 +20,12 @@ A free, open-source Chrome and Brave extension that uses photos you choose to pr
 - **Private photo library** holds up to 20 locally imported JPEG, PNG or WebP pictures. Each original image must be 8 MB or smaller.
 - **On-device processing** converts images to JPEG at up to 1600 pixels, stripping embedded EXIF/GPS metadata. Transparent areas become white.
 - **No cloud backend** and no data sent to the developer. Only Chrome/Brave and the Facebook site handle your pictures.
+
+## Screenshots
+
+| Library and controls | Staged dialog, verified before Save | Acknowledged result |
+| --- | --- | --- |
+| ![Library and controls](docs/screenshot-popup.png) | ![Staged dialog](docs/screenshot-dialog.png) | ![Acknowledged result](docs/screenshot-saved.png) |
 
 ## Install for free (Chrome or Brave)
 

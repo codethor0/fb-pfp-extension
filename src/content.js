@@ -1,4 +1,7 @@
-// Operates only in the Facebook profile-picture dialog. Does not handle credentials.
+// Site-adapter content script. The shared core drives a site's profile-picture
+// dialog: scoped upload, untainted preview verification, gated Save.
+// Adapters for sites whose DOM has not been probed on a logged-in session
+// stay disabled by design. Does not handle credentials.
 (() => {
   'use strict';
 
@@ -181,15 +184,55 @@
     document.body?.appendChild(node);
   }
 
+  // Site adapters. Each adapter owns the site-specific labels and guards; the
+  // upload, preview verification and gated Save flow below is shared core.
+  // An adapter must never be enabled from guesses: probe the logged-in DOM on
+  // the real site first, then set enabled to true deliberately.
+  const SITES = {
+    facebook: {
+      id: 'facebook',
+      hosts: ['www.facebook.com'],
+      enabled: true,
+      chooseAction: /^(?:choose|update) profile picture$/i,
+      saveAction: /^save(?: changes)?$/i,
+      nextAction: /^(?:select photo|next)$/i,
+      errorHint: 'Check the English Facebook UI.',
+    },
+    linkedin: {
+      id: 'linkedin',
+      hosts: ['www.linkedin.com'],
+      enabled: false,
+      note: 'Contract only. LinkedIn restricts automation; ship disabled until the logged-in DOM is probed.',
+    },
+    x: {
+      id: 'x',
+      hosts: ['x.com', 'www.x.com', 'mobile.x.com', 'twitter.com'],
+      enabled: false,
+      note: 'Contract only. X restricts automation; ship disabled until the logged-in DOM is probed.',
+    },
+  };
+
+  function siteFor(hostname) {
+    return Object.values(SITES).find(site => site.hosts.includes(hostname)) || null;
+  }
+
+  let activeSite = null;
+
   function validatePage() {
-    if (location.protocol !== 'https:' || location.hostname !== 'www.facebook.com') {
-      throw new Error('This extension runs only on https://www.facebook.com');
+    if (location.protocol !== 'https:') {
+      throw new Error('This extension runs only on https sites');
     }
-    if (/^\/(login|checkpoint)(?:\/|$|\.php)/i.test(location.pathname)) {
-      throw new Error('Log in to Facebook in this browser, then retry');
-    }
-    if (/^\/(?:home(?:\.php)?)?$/i.test(location.pathname)) {
-      throw new Error('Facebook did not open your profile. No photo selected.');
+    const site = siteFor(location.hostname);
+    if (!site) throw new Error(`This extension does not support ${location.hostname}`);
+    if (!site.enabled) throw new Error(`Support for ${site.id} is not enabled in this build`);
+    activeSite = site;
+    if (site.id === 'facebook') {
+      if (/^\/(login|checkpoint)(?:\/|$|\.php)/i.test(location.pathname)) {
+        throw new Error('Log in to Facebook in this browser, then retry');
+      }
+      if (/^\/(?:home(?:\.php)?)?$/i.test(location.pathname)) {
+        throw new Error('Facebook did not open your profile. No photo selected.');
+      }
     }
   }
 
@@ -355,11 +398,12 @@
   }
 
   async function uploadIntoDialog(bytes, expected) {
+    const site = activeSite || SITES.facebook;
     const avatar = await waitUntil(ownAvatar);
-    if (!avatar) throw new Error('Could not uniquely identify your own profile picture. Check the English Facebook UI.');
+    if (!avatar) throw new Error(`Could not uniquely identify your own profile picture. ${site.errorHint}`);
     press(avatar.closest('button, [role="button"]') || avatar);
 
-    const chooser = await waitUntil(() => uniqueClick(document, /^(?:choose|update) profile picture$/i));
+    const chooser = await waitUntil(() => uniqueClick(document, site.chooseAction));
     if (!chooser) throw new Error('Choose profile picture action was not uniquely identified');
     press(chooser);
 
@@ -386,14 +430,15 @@
   }
 
   async function saveIfRequested(before) {
-    // Intermediate steps vary by Facebook UI version. All clicks stay dialog scoped.
+    const site = activeSite || SITES.facebook;
+    // Intermediate steps vary by UI version. All clicks stay dialog scoped.
     const inDialog = (pattern) => () => {
       const dialog = profileDialog();
       return dialog && !dialogBusy(dialog) && !dialogError(dialog) && readyPreview(dialog, before)
         ? uniqueClick(dialog, pattern) : null;
     };
-    const findSave = inDialog(/^save(?: changes)?$/i);
-    const findNext = inDialog(/^(?:select photo|next)$/i);
+    const findSave = inDialog(site.saveAction);
+    const findNext = inDialog(site.nextAction);
     let save = findSave();
     for (let attempt = 0; !save && attempt < 2; attempt++) {
       const next = findNext();

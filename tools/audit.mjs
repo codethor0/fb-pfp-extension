@@ -10,7 +10,7 @@ const expected = ['storage', 'alarms'];
 const errors = [];
 const requireCheck = (ok, reason) => { if (!ok) errors.push(reason); };
 requireCheck(manifest.manifest_version === 3, 'Manifest V3 required');
-requireCheck(manifest.version === '0.2.2', 'Unexpected manifest version');
+requireCheck(manifest.version === '0.2.3', 'Unexpected manifest version');
 requireCheck(JSON.stringify(manifest.permissions) === JSON.stringify(expected), 'Permission set changed');
 requireCheck(JSON.stringify(manifest.host_permissions) === JSON.stringify(['https://www.facebook.com/*']), 'Host permissions broadened');
 requireCheck(manifest.background?.type === 'module', 'Background must use a module');

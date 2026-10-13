@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] - 2026-10-12
+
+- Fixed the known CDN verification limitation from 0.2.2: Facebook serves the staged preview from its own CDN, which taints canvas sampling and made the pixel-match gate decline every automatic Save. The content script now re-fetches a cross-origin preview untainted (the CDN permits reads from www.facebook.com) and verifies those bytes before Save. Same-origin, blob and data previews are still sampled directly, and an unchanged strict tolerance applies.
+- Automatic Save now works end to end on the live cropper: the staged photo is verified against the uploaded bytes and Save proceeds. Any real mismatch, dialog error, or busy state still stops fail-safe with manual Save guidance.
+- Added regression coverage for both sides of the cross-origin case: a tainted CDN preview with matching pixels is verified and reaches Save, and a CDN preview with different pixels never reaches Save. The full battery now passes 63 checks from a clean clone.
+
 ## [0.2.2] - 2026-10-12
 
 - A Save click that Facebook never confirms (the dialog cancels, errors, or never settles) now counts the photo as used instead of failing the run and retrying the same photo immediately. The popup reports the unconfirmed outcome honestly and the rotation advances.

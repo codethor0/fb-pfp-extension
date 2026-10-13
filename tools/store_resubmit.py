@@ -10,7 +10,7 @@ Typical use after `python3 tools/build_release.py --out dist`:
 
     python3 tools/store_resubmit.py \
       --publisher YOUR-PUBLISHER-ID --item YOUR-ITEM-ID \
-      --zip dist/fb-pfp-extension-v0.2.2-store.zip --wait
+      --zip dist/fb-pfp-extension-v0.2.3-store.zip --wait
 
 Single-pass mode (without --wait) prints one JSON result line and exits,
 which suits an external scheduler: 0 submitted, 3 review still pending,

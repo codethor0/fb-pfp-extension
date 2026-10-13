@@ -75,6 +75,8 @@ CHANGES = {
     'unrelated-reused-canvas': "const img=new Image();img.onload=()=>document.querySelector('#cropper').getContext('2d').drawImage(img,0,0,180,180);img.src=alternate;",
     'unreadable-preview': "preview(file);CanvasRenderingContext2D.prototype.getImageData=function(){throw new DOMException('Unreadable pixels','SecurityError');};",
     'resized-reencoded': "const img=new Image();img.onload=()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=120;canvas.getContext('2d').drawImage(img,0,0,120,120);canvas.toBlob(blob=>preview(blob),'image/jpeg',0.7);};img.src=URL.createObjectURL(file);",
+    'cdn-preview': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/staged.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
+    'cdn-wrong': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/wrong.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
     'centered-crop': "const canvas=document.createElement('canvas');canvas.width=canvas.height=180;document.querySelector('[role=\"dialog\"]').appendChild(canvas);const img=new Image();img.onload=()=>{const size=Math.min(img.naturalWidth,img.naturalHeight);canvas.getContext('2d').drawImage(img,(img.naturalWidth-size)/2,(img.naturalHeight-size)/2,size,size,0,0,180,180);window.__accepted=true;};img.src=URL.createObjectURL(file);",
 }
 SAVES = {
@@ -128,9 +130,17 @@ def main():
                                   ('const SAVE_WAIT_MS = 30000;', 'const SAVE_WAIT_MS = 1400;')]:
                 source = source.replace(before, after)
 
-            def run(html, publish=False, user_input=False, data=None):
+            def run(html, publish=False, user_input=False, data=None, routes=None):
                 page = browser.new_page()
                 page.on('filechooser', lambda chooser: None)  # Intercept native pickers in negative fixtures.
+                if routes:
+                    def make_handler(payload):
+                        def handler(route):
+                            route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
+                                          headers={'access-control-allow-origin': '*'})
+                        return handler
+                    for pattern, body in routes:
+                        page.route(pattern, make_handler(body))
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.set_content(html)
@@ -188,6 +198,20 @@ def main():
                 assert reply.get('ok') is True and reply.get('saved') is True, reply
                 page.close()
                 print(f'PASS: a centered crop of the selected {width}x{height} JPEG is recognized')
+
+            reply, page = run(fixture(change='cdn-preview'), True,
+                              routes=[('http://cdn.fb-pfp.fixture/staged.jpg', image_payload())])
+            assert reply.get('ok') is True and reply.get('saved') is True, reply
+            assert page.evaluate('window.__accepted') is True
+            assert page.evaluate('window.__saved') == 1
+            page.close()
+            print('PASS: a tainted cross-origin CDN preview is re-fetched untainted and verified before Save')
+
+            reply, page = run(fixture(change='cdn-wrong'), True,
+                              routes=[('http://cdn.fb-pfp.fixture/wrong.jpg', image_payload((230, 30, 40)))])
+            assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
+            page.close()
+            print('PASS: a cross-origin CDN preview with different pixels never reaches Save')
 
             for layout in ('missing-input', 'composer-click', 'ambiguous-inputs', 'ambiguous-dialogs',
                            'late-unrelated-input', 'multiple-requested-inputs', 'accept-less-input'):

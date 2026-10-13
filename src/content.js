@@ -250,26 +250,71 @@
     return {
       sources: new Set([...dialog.querySelectorAll('img')].map(previewSource)),
       canvases: new Map([...dialog.querySelectorAll('canvas')].map(canvas => [canvas, canvasPicture(canvas)])),
+      verified: new Set(),
+      checked: new Map(),
       expected
     };
   }
 
-  function readyPreview(dialog, before) {
+  function candidateImages(dialog, before) {
     const pictureSized = element => {
       const box = element.getBoundingClientRect();
       return visible(element) && box.width >= 80 && box.height >= 80;
     };
-    const images = [...dialog.querySelectorAll('img')].filter(image => pictureSized(image) &&
+    return [...dialog.querySelectorAll('img')].filter(image => pictureSized(image) &&
       image.complete && image.naturalWidth > 0 && image.naturalHeight > 0 &&
-      previewSource(image) && !before.sources.has(previewSource(image)) &&
-      matchesPicture(pictureSamples(image), before.expected));
+      previewSource(image) && !before.sources.has(previewSource(image)));
+  }
+
+  // Facebook serves staged previews from a CDN that taints canvases, which
+  // makes direct getImageData sampling fail. The CDN allows cross-origin
+  // reads from www.facebook.com, so re-fetch the bytes untainted and compare
+  // those. Same-origin, blob and data images are sampled directly.
+  async function untaintedDrawable(image) {
+    const src = previewSource(image);
+    if (!src) return null;
+    if (src.startsWith('blob:') || src.startsWith('data:')) return image;
+    if (new URL(src, location.href).origin === location.origin) return image;
+    try {
+      const response = await fetch(src, {credentials: 'omit', mode: 'cors'});
+      if (!response.ok) return null;
+      return await createImageBitmap(await response.blob());
+    } catch {
+      return null;
+    }
+  }
+
+  async function verifyCandidate(image, before) {
+    const src = previewSource(image);
+    const drawable = await untaintedDrawable(image);
+    if (drawable && matchesPicture(pictureSamples(drawable), before.expected)) {
+      before.verified.add(src);
+      return image;
+    }
+    return null;
+  }
+
+  function readyPreview(dialog, before) {
+    const images = [...dialog.querySelectorAll('img')].filter(image =>
+      before.verified.has(previewSource(image)));
+    if (images[0]) return images[0];
     const canvases = [...dialog.querySelectorAll('canvas')].filter(canvas => {
-      if (!pictureSized(canvas)) return false;
+      const box = canvas.getBoundingClientRect();
+      if (!visible(canvas) || box.width < 80 || box.height < 80) return false;
       const samples = pictureSamples(canvas);
       const picture = canvasPicture(canvas, samples);
       return picture !== null && picture !== before.canvases.get(canvas) && matchesPicture(samples, before.expected);
     });
-    return images[0] || canvases[0] || null;
+    return canvases[0] || null;
+  }
+
+  async function verifyPreview(dialog, before) {
+    for (const image of candidateImages(dialog, before)) {
+      const src = previewSource(image);
+      if (!before.checked.has(src)) before.checked.set(src, verifyCandidate(image, before));
+      if (await before.checked.get(src)) return image;
+    }
+    return null;
   }
 
   function canvasPicture(canvas, samples = pictureSamples(canvas)) {
@@ -292,7 +337,7 @@
     while (Date.now() < deadline) {
       const dialog = profileDialog();
       if (dialog && dialogError(dialog)) throw new Error('Facebook reported an upload problem; no automatic Save attempted');
-      const preview = dialog && !dialogBusy(dialog) ? readyPreview(dialog, before) : null;
+      const preview = dialog && !dialogBusy(dialog) ? (readyPreview(dialog, before) || await verifyPreview(dialog, before)) : null;
       if (!preview || preview !== lastPreview) readySince = 0;
       if (preview && !readySince) readySince = Date.now();
       lastPreview = preview;

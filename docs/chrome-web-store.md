@@ -20,7 +20,7 @@ Last reviewed: 2026-10-11. The extension is a source candidate, not an approved 
 ## Build and upload
 
 1. Generate reproducible archives: `python3 tools/build_release.py --out dist`.
-2. Upload `dist/fb-pfp-extension-v0.2.2-store.zip`. Its manifest is at the ZIP root. **Do not** upload the install ZIP, which has an enclosing folder, or the source ZIP, which includes developer tests.
+2. Upload `dist/fb-pfp-extension-v0.2.3-store.zip`. Its manifest is at the ZIP root. **Do not** upload the install ZIP, which has an enclosing folder, or the source ZIP, which includes developer tests.
 3. In the Chrome Web Store developer dashboard, create a new item and upload the store ZIP.
 4. Complete Store listing: product name, short and detailed description, English language, category, 128 x 128 icon, and accurate screenshots of the extension working. Google may require additional assets. Do not supply images containing someone's private Facebook profile or credentials.
 5. Complete Privacy practices: document access to Facebook profile-page UI, storage of imported images and preferences on the user's device, image handoff to Facebook, absence of publisher telemetry, and why the requested host access is required. Publish the public privacy policy at a stable URL, for example `https://github.com/codethor0/fb-pfp-extension/blob/main/PRIVACY.md` only after it matches the shipped source.
@@ -35,7 +35,7 @@ The dashboard disables "Upload new package" while a draft is pending review, and
 ```bash
 python3 tools/store_resubmit.py \
   --publisher YOUR-PUBLISHER-ID --item YOUR-ITEM-ID \
-  --zip dist/fb-pfp-extension-v0.2.2-store.zip --wait
+  --zip dist/fb-pfp-extension-v0.2.3-store.zip --wait
 ```
 
 The browser must run with remote debugging available (for example `--remote-debugging-port=9222`); the tool connects over the local CDP endpoint and never handles credentials. Without `--wait` it performs a single check and prints one JSON result line (exit code 0 submitted, 3 still pending, 4 browser or session unreachable, 5 unexpected dashboard state), which suits an external scheduler. It screenshots every stage into `--shots` (default `shots-store/`) and verifies the ZIP against `--sha256` when supplied. The publisher and item ids come from your devconsole URLs; treat them as semi-public.

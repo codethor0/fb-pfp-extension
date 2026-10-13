@@ -10,7 +10,7 @@ const expected = ['storage', 'alarms'];
 const errors = [];
 const requireCheck = (ok, reason) => { if (!ok) errors.push(reason); };
 requireCheck(manifest.manifest_version === 3, 'Manifest V3 required');
-requireCheck(manifest.version === '0.3.1', 'Unexpected manifest version');
+requireCheck(manifest.version === '0.4.0', 'Unexpected manifest version');
 requireCheck(JSON.stringify(manifest.permissions) === JSON.stringify(expected), 'Permission set changed');
 requireCheck(JSON.stringify(manifest.host_permissions) === JSON.stringify(['https://www.facebook.com/*']), 'Host permissions broadened');
 requireCheck(manifest.background?.type === 'module', 'Background must use a module');
@@ -78,6 +78,14 @@ requireCheck(!/background-firefox\.js/.test(firefoxBuild), 'Firefox build must n
 requireCheck(!existsSync(join(root,'src/background-firefox.js')), 'Obsolete Firefox wrapper must stay removed');
 requireCheck(/typeof chrome\.storage\.local\.setAccessLevel === 'function'/.test(serviceWorker),
   'Chromium-only storage APIs must be feature-detected for Firefox');
+// Adapter invariants: only probed sites ship enabled, and host permissions
+// never broaden before an adapter is deliberately turned on.
+requireCheck(/const SITES = \{/.test(content), 'Site adapter table missing');
+for (const probe of ['linkedin', 'x']) {
+  const at = content.indexOf(probe + ': {');
+  const block = at >= 0 ? content.slice(at, at + 500) : '';
+  requireCheck(/enabled: false/.test(block), `${probe} adapter must ship disabled until probed on a logged-in DOM`);
+}
 if (errors.length) {
   console.error(`Audit blocked: ${errors.length} issue(s).\n`+errors.join('\n'));
   process.exit(1);

@@ -3,7 +3,7 @@
   "name": "fb-pfp: Profile Picture Rotator",
   "short_name": "fb-pfp",
   "description": "Review or change your own Facebook profile picture using local photos. No accounts, servers, or tracking.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "minimum_chrome_version": "120",
   "permissions": [
     "storage",

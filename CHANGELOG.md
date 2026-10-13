@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-10-15
+
+- Added the site-adapter architecture: site-specific labels and page guards now live in per-site adapters while the scoped upload, untainted preview verification and the gated Save flow stay shared core. Facebook remains the only enabled adapter.
+- Added contract-only adapters for LinkedIn and X. Both ship disabled: their logged-in DOMs must be probed on real accounts before any selector ships, and both sites restrict automation. Enabling an adapter is a deliberate change, never a guess, and host permissions are not broadened until then.
+- The page guard now names the unsupported host instead of assuming Facebook, so future adapters fail closed with a clear message.
+
 ## [0.3.1] - 2026-10-15
 
 - The Firefox manifest now declares `data_collection_permissions: {required: ["none"]}`, which addons.mozilla.org has required for every new add-on since 2025-11-03. Without this key the upload is rejected at validation time.

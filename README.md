@@ -66,13 +66,15 @@ With Node.js 20+ and Python 3 installed, run **one command**:
 bash verify.sh --full
 ```
 
-It runs static security checks, 26 dependency-free unit tests, 50 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
+It runs static security checks, 26 dependency-free unit tests, 52 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
 
 ```bash
 bash verify.sh --offline    # Run mock-page tests without extension-worker lifecycle
 bash verify.sh --quick      # Node static checks and unit tests only
 python3 tools/build_release.py --out dist
 ```
+
+For replacing a staged store package once a pending review finishes, `python3 tools/store_resubmit.py --publisher ID --item ID --zip dist/...-store.zip --wait` drives the maintainer's own signed-in browser over the local CDP endpoint and resubmits; see [docs/chrome-web-store.md](docs/chrome-web-store.md).
 
 Makefile shortcuts are `make quick`, `make test`, `make verify` and `make package`. They never act on real Facebook, call the separate CLI, commit code or publish a release.
 

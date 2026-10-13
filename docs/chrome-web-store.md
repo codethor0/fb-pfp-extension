@@ -28,6 +28,18 @@ Last reviewed: 2026-10-11. The extension is a source candidate, not an approved 
 7. Set Distribution visibility, locations and pricing (Free), review all disclosures, then **Submit for Review**. You can choose deferred publication after approval.
 8. Await Google's review outcome. Approval time and outcome cannot be guaranteed. Do not claim an official listing until the Chrome Web Store provides its public listing URL.
 
+## Replacing a staged package after review starts
+
+The dashboard disables "Upload new package" while a draft is pending review, and the current console offers no withdraw option. Wait for the review outcome first. Once it finishes (approval or rejection), the package tab unlocks and `tools/store_resubmit.py` can replace the staged package and resubmit in one step inside your already signed-in browser:
+
+```bash
+python3 tools/store_resubmit.py \
+  --publisher YOUR-PUBLISHER-ID --item YOUR-ITEM-ID \
+  --zip dist/fb-pfp-extension-v0.2.2-store.zip --wait
+```
+
+The browser must run with remote debugging available (for example `--remote-debugging-port=9222`); the tool connects over the local CDP endpoint and never handles credentials. Without `--wait` it performs a single check and prints one JSON result line (exit code 0 submitted, 3 still pending, 4 browser or session unreachable, 5 unexpected dashboard state), which suits an external scheduler. It screenshots every stage into `--shots` (default `shots-store/`) and verifies the ZIP against `--sha256` when supplied. The publisher and item ids come from your devconsole URLs; treat them as semi-public.
+
 ## Sources
 
 - Registration: https://developer.chrome.com/docs/webstore/register/

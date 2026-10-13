@@ -9,6 +9,7 @@
 - A scheduled daily review opens the Facebook tab in the background. Tabs opened by your own clicks stay in the foreground.
 - Documented that runs intentionally leave the Facebook tab open for your inspection.
 - Added regressions for the unconfirmed Save outcome, unknown message senders and accept-less file inputs. The full battery now passes 60 checks from a clean clone.
+- Added `tools/store_resubmit.py` to replace a staged store package and resubmit for review through the maintainer's own signed-in browser once a pending review unlocks the package tab.
 
 ## [0.2.1] - 2026-10-12
 

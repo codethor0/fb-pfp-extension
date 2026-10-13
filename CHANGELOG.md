@@ -1,7 +1,11 @@
 # Changelog
 
-## [0.2.1] - 2026-10-11
+## [0.2.1] - 2026-10-12
 
+- Verified the packaged build against the owner's live Facebook account: Prepare for review opened the real profile-picture dialog with the selected photo, left the composer untouched, and the dialog was dismissed without changes.
+- Submitted the Chrome Web Store listing for review with automatic publication after approval. Synced the public repository, privacy policy, listing and staged package.
+- Repaired the test harness: strip every ES module export when inlining images.mjs, define the chrome stub before use, and wait for a render-settled popup state.
+- Added repository badges, a Support section and GitHub Sponsors funding metadata.
 - Added selected-image preview checks, guarded upload-input attribution, stable Save acknowledgement, and cancellation handling.
 - Expanded content regressions and actual Chrome/Brave lifecycle checks, including persistent photo bytes and scheduled review.
 

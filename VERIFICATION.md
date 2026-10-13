@@ -2,7 +2,7 @@
 
 Date: 2026-10-12
 Version: 0.2.1
-Status: LOCAL CANDIDATE; LIVE FACEBOOK ACCEPTANCE PENDING
+Status: STORE REVIEW PENDING; LIVE REVIEW FLOW VERIFIED ON OWNER ACCOUNT
 
 ## Completed automated checks
 
@@ -20,15 +20,19 @@ Status: LOCAL CANDIDATE; LIVE FACEBOOK ACCEPTANCE PENDING
 - Test browsers map www.facebook.com to local HTTPS fixtures and make other hosts unresolvable. No real account or public avatar was changed.
 - Release packaging checks manifest-at-root, allowlisted runtime files and exclusion of private media, credentials and machine-specific paths.
 
+## Completed live acceptance
+
+- On 2026-10-12 the packaged build was loaded into the owner's Brave session and run against the owner's real Facebook account with the English interface.
+- Prepare for review opened the real profile-picture dialog with the selected library photo loaded in the cropper. The post composer was untouched and Save was never clicked.
+- The dialog was dismissed without changes; the public profile picture was confirmed unchanged afterwards.
+
 ## Remaining acceptance gates
 
-- The owner must confirm the exact packaged build against real Facebook in Chrome and Brave, including the intended preview and untouched composer.
+- A public Save test (Change profile picture now) still requires an owner decision and inspection of the resulting profile picture. No live Save has been performed or claimed.
 - A Save acknowledgement is dialog completion after an explicit click. It does not independently prove Facebook persisted the intended avatar.
-- Any public Save test requires an owner decision and inspection of the resulting profile picture.
 - Browser sleep, future interface variants, profile upgrades and unreadable cropper forms remain outside the verified synthetic cases.
-- The maintainer must reconcile the tested source, public repository, store package, screenshot, listing and privacy policy before review submission.
-- Store acceptance and publication have not occurred as part of this verification.
+- The store item was submitted for review on 2026-10-12 with automatic publication after approval. Store acceptance is up to Google and has not occurred as part of this verification.
 
 ## Release rule
 
-Keep publication under the authenticated publisher workflow. Complete live acceptance before submitting the store item. Do not claim zero bugs or automatic verification of the final public avatar.
+Keep publication under the authenticated publisher workflow. Do not claim zero bugs or automatic verification of the final public avatar.

@@ -7,7 +7,7 @@ Status: STORE REVIEW PENDING; LIVE REVIEW FLOW VERIFIED ON OWNER ACCOUNT
 ## Completed automated checks
 
 - Static manifest, minimum permissions and repository hygiene audit passed.
-- All 26 dependency-free Node tests passed.
+- All 34 dependency-free Node tests passed.
 - All 52 synthetic content regressions passed in installed Chrome and Brave on macOS.
 - Popup import/removal, confirmation, review and schedule controls passed in both browsers.
 - Full Manifest V3 lifecycle passed in Chrome 155.0.8059.40 and Brave 155.1.97.56 using disposable profiles.

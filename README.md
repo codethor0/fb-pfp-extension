@@ -66,7 +66,7 @@ With Node.js 20+ and Python 3 installed, run **one command**:
 bash verify.sh --full
 ```
 
-It runs static security checks, 26 dependency-free unit tests, 52 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
+It runs static security checks, 34 dependency-free unit tests, 52 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
 
 ```bash
 bash verify.sh --offline    # Run mock-page tests without extension-worker lifecycle

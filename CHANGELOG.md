@@ -10,6 +10,7 @@
 - Documented that runs intentionally leave the Facebook tab open for your inspection.
 - Added regressions for the unconfirmed Save outcome, unknown message senders and accept-less file inputs. The full battery now passes 60 checks from a clean clone.
 - Added `tools/store_resubmit.py` to replace a staged store package and resubmit for review through the maintainer's own signed-in browser once a pending review unlocks the package tab.
+- PNG dimensions are now read from the IHDR chunk before decoding, and a 64 MP pixel budget backstops every decoded image, closing the decompression-bomb gap in photo import.
 
 ## [0.2.1] - 2026-10-12
 

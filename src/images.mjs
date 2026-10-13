@@ -2,6 +2,7 @@ export const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 export const MAX_STORED_BYTES = 3 * 1024 * 1024;
 export const MAX_DIMENSION = 1600;
 export const MAX_LIBRARY_COUNT = 20;
+export const MAX_PIXELS = 64_000_000;
 
 // Check signature, not just the filename or MIME type.
 export function imageFormat(bytes) {
@@ -11,6 +12,23 @@ export function imageFormat(bytes) {
   if (b.length >= 12 && String.fromCharCode(...b.slice(0, 4)) === 'RIFF' &&
       String.fromCharCode(...b.slice(8, 12)) === 'WEBP') return 'webp';
   return null;
+}
+
+// PNG width and height are big-endian uint32 values in the IHDR chunk at byte
+// offsets 16 and 20. Reading them before decode rejects decompression bombs
+// that a small compressed file could otherwise expand into.
+export function declaredPngDimensions(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b.length < 24 || b[12] !== 0x49 || b[13] !== 0x48 || b[14] !== 0x44 || b[15] !== 0x52) return null;
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  return {width: view.getUint32(16), height: view.getUint32(20)};
+}
+
+export function dimensionsSupported(width, height) {
+  return Number.isInteger(width) && Number.isInteger(height) &&
+    width >= 1 && height >= 1 &&
+    width <= 10000 && height <= 10000 &&
+    width * height <= MAX_PIXELS;
 }
 
 export function safePhotoName(name) {
@@ -26,9 +44,15 @@ export async function normalizePhoto(file) {
   }
   const signature = imageFormat(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
   if (!signature) throw new Error('Use a valid JPEG, PNG or WebP image');
+  if (signature === 'png') {
+    const declared = declaredPngDimensions(new Uint8Array(await file.slice(0, 33).arrayBuffer()));
+    if (!declared || !dimensionsSupported(declared.width, declared.height)) {
+      throw new Error('Image dimensions are unsupported');
+    }
+  }
   const bitmap = await createImageBitmap(file);
   try {
-    if (bitmap.width < 1 || bitmap.height < 1 || bitmap.width > 10000 || bitmap.height > 10000) {
+    if (!dimensionsSupported(bitmap.width, bitmap.height)) {
       throw new Error('Image dimensions are unsupported');
     }
     const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));

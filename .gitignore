@@ -31,3 +31,7 @@ dist/
 
 .verify-venv/
 .pytest_cache/
+!docs/demo.gif
+!docs/screenshot-popup.png
+!docs/screenshot-dialog.png
+!docs/screenshot-saved.png

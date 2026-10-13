@@ -19,9 +19,19 @@ async function writeSettings(settings) {
   await chrome.storage.local.set({[STORAGE_KEY]: sanitizeSettings(settings)});
 }
 
+// Serialize settings read-modify-write so a concurrent schedule change can
+// never be clobbered by a run that read the settings first (audit finding F6).
+let settingsQueue = Promise.resolve();
+function updateSettings(mutator) {
+  const next = settingsQueue.then(async () => mutator(await readSettings()));
+  settingsQueue = next.then(() => {}, () => {});
+  return next;
+}
+
 async function writeResult(message) {
-  const settings = await readSettings();
-  await writeSettings({...settings, lastResult: `${new Date().toLocaleString()}: ${message}`});
+  await updateSettings(async settings => {
+    await writeSettings({...settings, lastResult: `${new Date().toLocaleString()}: ${message}`});
+  });
 }
 
 async function syncAlarm() {
@@ -78,7 +88,9 @@ async function runPhoto({source, publish}) {
     const photo = await getPhoto(selected.id);
     if (!photo?.blob) throw new Error('The selected photo was removed. Try again.');
     const base64 = await encodePhoto(photo.blob);
-    const tab = await chrome.tabs.create({url: FACEBOOK_PROFILE, active: true});
+    // Alarm-initiated runs open the tab in the background so a scheduled review
+    // never steals focus; user-initiated runs open in the foreground.
+    const tab = await chrome.tabs.create({url: FACEBOOK_PROFILE, active: source !== 'alarm'});
     if (!Number.isInteger(tab.id)) throw new Error('Could not open your Facebook profile');
     const result = await sendToNewTab(tab.id, {
       type: 'PREPARE_PHOTO',
@@ -88,21 +100,30 @@ async function runPhoto({source, publish}) {
       data: base64
     });
     if (!result?.ok) throw new Error(result?.error || 'Facebook did not accept the image');
-    // A completed review does not use up a picture. Only a Save acknowledgement does.
+    // A completed review does not use up a picture. A Save click does, even when
+    // Facebook never confirmed the result: retrying the same photo immediately
+    // would risk a second publication (audit finding F2).
     if (publish) {
-      if (result.saved !== true) throw new Error('Save was not acknowledged. Rotation state was not changed.');
-      const current = await readSettings();
+      if (result.saved !== true) throw new Error('Save was not clicked. Rotation state was not changed.');
+      const confirmed = result.confirmed !== false;
       const remaining = await listPhotos();
-      const updated = remaining.some(item => item.id === selected.id)
-        ? recordSaved(remaining, current, selected.id) : current;
-      try {
-        await writeSettings({...updated, lastResult: `${new Date().toLocaleString()}: Save acknowledged for ${selected.originalName}. Verify your Facebook profile picture.`});
-      } catch (error) {
+      const outcome = await updateSettings(async current => {
+        const updated = remaining.some(item => item.id === selected.id)
+          ? recordSaved(remaining, current, selected.id) : current;
+        const message = confirmed
+          ? `${new Date().toLocaleString()}: Save acknowledged for ${selected.originalName}. Verify your Facebook profile picture.`
+          : `${new Date().toLocaleString()}: Save clicked for ${selected.originalName}, but Facebook did not confirm the result. The photo was counted as used so it will not repeat immediately. Verify your Facebook profile picture.`;
+        await writeSettings({...updated, lastResult: message});
+        return updated;
+      }).then(() => true, () => false);
+      if (!outcome) {
         // Never report Save as failed solely because rotation state failed to persist.
-        return {ok: true, saved: true, name: selected.originalName, tabId: tab.id,
-          warning: 'Save was acknowledged, but the rotation state could not be updated. Verify Facebook.'};
+        return {ok: true, saved: true, confirmed, name: selected.originalName, tabId: tab.id,
+          warning: confirmed
+            ? 'Save was acknowledged, but the rotation state could not be updated. Verify Facebook.'
+            : 'Save was clicked but not confirmed, and the rotation state could not be updated. Verify Facebook.'};
       }
-      return {ok: true, saved: true, name: selected.originalName, tabId: tab.id};
+      return {ok: true, saved: true, confirmed, name: selected.originalName, tabId: tab.id};
     }
     await writeResult(`${selected.originalName} prepared for review. Click Save on Facebook if it is correct.`).catch(() => {});
     return {ok: true, saved: false, name: selected.originalName, tabId: tab.id};
@@ -123,15 +144,17 @@ async function handleMessage(message, sender) {
   }
   if (message?.type === 'GET_SETTINGS') return {ok: true, settings: await readSettings()};
   if (message?.type === 'SAVE_SETTINGS') {
-    const previous = await readSettings();
     const requested = message.settings || {};
-    const updated = sanitizeSettings({
-      ...previous,
-      mode: requested.mode,
-      scheduleEnabled: requested.scheduleEnabled,
-      scheduleTime: requested.scheduleTime
+    const updated = await updateSettings(async previous => {
+      const next = sanitizeSettings({
+        ...previous,
+        mode: requested.mode,
+        scheduleEnabled: requested.scheduleEnabled,
+        scheduleTime: requested.scheduleTime
+      });
+      await writeSettings(next);
+      return next;
     });
-    await writeSettings(updated);
     await syncAlarm();
     return {ok: true, settings: updated};
   }

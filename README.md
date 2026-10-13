@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.1-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.2-green.svg)](CHANGELOG.md)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dfehebmpdngoaemfiigjndoecobjgldl.svg)](https://chromewebstore.google.com/detail/dfehebmpdngoaemfiigjndoecobjgldl)
 
 A free, open-source Chrome and Brave extension that uses photos you choose to prepare or change your own Facebook profile picture. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.

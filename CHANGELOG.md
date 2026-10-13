@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2] - 2026-10-12
+
+- A Save click that Facebook never confirms (the dialog cancels, errors, or never settles) now counts the photo as used instead of failing the run and retrying the same photo immediately. The popup reports the unconfirmed outcome honestly and the rotation advances.
+- The content script now rejects messages not sent by this extension, so another extension id cannot drive the profile-picture dialog.
+- An upload file input must declare image-only accept types. An input without an accept attribute is never used.
+- Rotation settings updates are serialized, so overlapping runs cannot lose rotation state.
+- A scheduled daily review opens the Facebook tab in the background. Tabs opened by your own clicks stay in the foreground.
+- Documented that runs intentionally leave the Facebook tab open for your inspection.
+- Added regressions for the unconfirmed Save outcome, unknown message senders and accept-less file inputs. The full battery now passes 60 checks from a clean clone.
+
 ## [0.2.1] - 2026-10-12
 
 - Verified the packaged build against the owner's live Facebook account: Prepare for review opened the real profile-picture dialog with the selected photo, left the composer untouched, and the dialog was dismissed without changes.

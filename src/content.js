@@ -92,19 +92,18 @@
     return (input.getAttribute('accept') || '').toLowerCase().split(',').map(item => item.trim()).filter(Boolean);
   }
 
-  function takesImages(input) {
-    const types = acceptedTypes(input);
-    return !input.disabled && (!types.length || types.some(type => IMAGE_TYPE.test(type)));
-  }
-
   function takesOnlyImages(input) {
+    // Every used input must declare image types. The current Facebook dialog
+    // holds no file input of its own; the Upload-photo path targets an
+    // external input whose accept list is image-only. An input without an
+    // accept attribute is not provably an image input, so it is never used.
     const types = acceptedTypes(input);
     return !input.disabled && types.length > 0 && types.every(type => IMAGE_TYPE.test(type));
   }
 
   function dialogInput() {
     const dialog = profileDialog();
-    const inputs = dialog ? [...dialog.querySelectorAll('input[type="file"]')].filter(takesImages) : [];
+    const inputs = dialog ? [...dialog.querySelectorAll('input[type="file"]')].filter(takesOnlyImages) : [];
     return inputs.length === 1 ? inputs[0] : null;
   }
 
@@ -367,19 +366,29 @@
       const deadline = Date.now() + SAVE_WAIT_MS;
       let closedSince = 0;
       while (Date.now() < deadline) {
-        if (cancelled) throw new Error('Save was clicked but the dialog was cancelled; result is unknown. Verify Facebook.');
+        if (cancelled) {
+          // Save was clicked and something then cancelled or replaced the dialog. Facebook may
+          // or may not have kept the change; report it as unconfirmed so the caller treats the
+          // rotation as consumed instead of retrying the same photo immediately.
+          return {ok: true, saved: true, confirmed: false, stage: 'save-click-unconfirmed'};
+        }
         const dialog = profileDialog();
-        if (dialog && dialogError(dialog)) throw new Error('Facebook reported a problem after Save; result is unknown. Verify Facebook.');
+        if (dialog && dialogError(dialog)) {
+          return {ok: true, saved: true, confirmed: false, stage: 'save-click-unconfirmed'};
+        }
         // An unlabeled replacement shell is still a dialog. A brief removal during rendering is not acknowledgement.
         const anyDialog = [...document.querySelectorAll('[role="dialog"], dialog')].some(visible);
         if (anyDialog) closedSince = 0;
         else if (!closedSince) closedSince = Date.now();
         else if (Date.now() - closedSince >= SAVE_SETTLE_MS) {
-          return {ok: true, saved: true, stage: 'save-click-acknowledged'};
+          return {ok: true, saved: true, confirmed: true, stage: 'save-click-acknowledged'};
         }
         await sleep(200);
       }
-      throw new Error('Save was clicked but the dialog did not finish closing; result is unknown. Verify Facebook.');
+      // Save was clicked but the dialog never settled; the outcome is unknown. Same treatment as
+      // a mid-close cancel: the rotation counts as consumed, because retrying would risk an
+      // immediate second publication of the same photo.
+      return {ok: true, saved: true, confirmed: false, stage: 'save-click-unconfirmed'};
     } finally {
       window.removeEventListener('click', onCancel, true);
       window.removeEventListener('keydown', onCancel, true);
@@ -403,8 +412,13 @@
     return result;
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== 'PREPARE_PHOTO') return false;
+    // Only this extension's own pages and worker may drive the dialog.
+    if (sender?.id !== chrome.runtime.id) {
+      sendResponse({ok: false, error: 'Ignored message from an unknown sender'});
+      return false;
+    }
     if (working) {sendResponse({ok: false, error: 'Another operation is in progress'}); return false;}
     working = true;
     run(message)

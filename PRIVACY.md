@@ -35,7 +35,7 @@ your device, and the developer never sees any of it.
   inspection. It never clicks Save and never changes your profile picture
   without you. If the browser is closed at the scheduled time, the review
   runs the next time the browser starts, and it opens the Facebook tab in
-  the foreground so you can inspect it.
+  the background so you can inspect it when ready.
 
 ## What the developer collects
 

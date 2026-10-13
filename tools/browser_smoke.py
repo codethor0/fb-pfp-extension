@@ -54,6 +54,7 @@ LAYOUTS = {
     'unrelated-user-input': "add(dialogHtml(CONTENT));add('<input id=\"unrelated\" type=\"file\" accept=\"image/*\">');document.querySelector('#upload').addEventListener('click',()=>window.__uploadPressed=true);",
     'late-unrelated-input': "add(dialogHtml(CONTENT));add('<input id=\"unrelated\" type=\"file\" accept=\"image/*\">');document.querySelector('#upload').addEventListener('click',()=>setTimeout(()=>document.querySelector('#unrelated').click(),200));",
     'multiple-requested-inputs': "add(dialogHtml(CONTENT));document.querySelector('#upload').addEventListener('click',()=>{makeInput(document.body).click();makeInput(document.body).click();});",
+    'accept-less-input': "add(dialogHtml(CONTENT+'<input id=\"noaccept\" type=\"file\">'));",
 }
 CHANGES = {
     'accepted': 'preview(file);',
@@ -132,19 +133,19 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.set_content(html)
-                page.evaluate('window.chrome={runtime:{onMessage:{addListener(fn){window.__handler=fn;}}}};')
+                page.evaluate('window.chrome={runtime:{id:"test-ext",onMessage:{addListener(fn){window.__handler=fn;}}}};')
                 page.add_script_tag(content=source)
                 payload = {'data': data or image_payload(), 'publish': publish}
                 if user_input:
                     page.evaluate('''({data,publish})=>{window.__reply=null;window.__handler(
-                        {type:'PREPARE_PHOTO',data,mime:'image/jpeg',fileName:'profile-photo.jpg',publish},{},reply=>window.__reply=reply);}''', payload)
+                        {type:'PREPARE_PHOTO',data,mime:'image/jpeg',fileName:'profile-photo.jpg',publish},{id:'test-ext'},reply=>window.__reply=reply);}''', payload)
                     page.wait_for_function('window.__uploadPressed===true')
                     page.locator('#unrelated').click()
                     page.wait_for_function('window.__reply!==null')
                     reply = page.evaluate('window.__reply')
                 else:
                     reply = page.evaluate('''({data,publish})=>new Promise(resolve=>window.__handler(
-                        {type:'PREPARE_PHOTO',data,mime:'image/jpeg',fileName:'profile-photo.jpg',publish},{},resolve))''', payload)
+                        {type:'PREPARE_PHOTO',data,mime:'image/jpeg',fileName:'profile-photo.jpg',publish},{id:'test-ext'},resolve))''', payload)
                 assert not errors, errors
                 assert page.locator('#composer').evaluate('e=>e.files.length') == 0
                 assert page.evaluate('window.__premature') == 0, 'Save was clicked before upload readiness'
@@ -181,7 +182,7 @@ def main():
                 print(f'PASS: a centered crop of the selected {width}x{height} JPEG is recognized')
 
             for layout in ('missing-input', 'composer-click', 'ambiguous-inputs', 'ambiguous-dialogs',
-                           'late-unrelated-input', 'multiple-requested-inputs'):
+                           'late-unrelated-input', 'multiple-requested-inputs', 'accept-less-input'):
                 reply, page = run(fixture(layout=layout), True)
                 assert reply.get('ok') is False, (layout, reply)
                 assert page.evaluate('window.__changed') == []
@@ -197,6 +198,18 @@ def main():
             assert 'picker requested no' in reply.get('error', ''), reply
             page.close()
             print('PASS: a native user click on an unrelated file input cannot redirect the upload')
+
+            reply, page = run(fixture())
+            assert reply.get('ok') is True, reply
+            changed = page.evaluate('window.__changed')
+            foreign = page.evaluate('''new Promise(resolve=>window.__handler(
+                {type:'PREPARE_PHOTO',data:'AAAA',mime:'image/jpeg',fileName:'profile-photo.jpg',publish:true},
+                {id:'not-test-ext'},resolve))''')
+            assert foreign.get('ok') is False and 'unknown sender' in foreign.get('error', ''), foreign
+            assert page.evaluate('window.__saved') == 0
+            assert page.evaluate('window.__changed') == changed
+            page.close()
+            print('PASS: a message from another extension id is ignored')
 
             for change in ('ignored', 'rejected', 'broken-preview', 'empty-canvas', 'thumbnail-only',
                            'unrelated-gallery', 'unrelated-canvas', 'unreadable-preview'):
@@ -233,13 +246,14 @@ def main():
 
             for save in ('stuck', 'cancel', 'escape', 'error', 'unlabelled-shell', 'shell-gap-error', 'unlabelled-cancel'):
                 reply, page = run(fixture(save=save), True)
-                assert reply.get('ok') is False and reply.get('saved') is not True, (save, reply)
+                assert (reply.get('ok') is True and reply.get('saved') is True
+                        and reply.get('confirmed') is False), (save, reply)
                 assert page.evaluate('window.__saved') == 1
                 page.close()
-                print('PASS:', save, 'keeps Save result unknown')
+                print('PASS:', save, 'counts the Save click as used without claiming confirmation')
 
             reply, page = run(fixture(save='shell-gap-close'), True)
-            assert reply.get('ok') is True and reply.get('saved') is True, reply
+            assert reply.get('ok') is True and reply.get('saved') is True and reply.get('confirmed') is True, reply
             assert page.locator('[role="dialog"]').count() == 0
             page.close()
             print('PASS: replacement shell must finish closing before acknowledgement')

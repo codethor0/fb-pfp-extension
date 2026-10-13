@@ -29,7 +29,7 @@ img{width:80px;height:80px}</style></head><body>
 <button id="avatar"><img alt="Profile picture" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='blue'/%3E%3C/svg%3E"></button>
 <button id="chooser" hidden>Choose profile picture</button>
 <div role="dialog" id="dialog" hidden><h2>Choose profile picture</h2>
-<input id="pfp-input" type="file"><button id="save">Save</button></div>
+<input id="pfp-input" type="file" accept="image/*,image/heif,image/heic"><button id="save">Save</button></div>
 <script>
 window.__saved=0;
 document.querySelector('#avatar').addEventListener('click',()=>document.querySelector('#chooser').hidden=false);

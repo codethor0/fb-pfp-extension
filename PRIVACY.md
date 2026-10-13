@@ -33,7 +33,9 @@ your device, and the developer never sees any of it.
   you out of it.
 - The optional daily review only prepares the profile-picture dialog for your
   inspection. It never clicks Save and never changes your profile picture
-  without you.
+  without you. If the browser is closed at the scheduled time, the review
+  runs the next time the browser starts, and it opens the Facebook tab in
+  the foreground so you can inspect it.
 
 ## What the developer collects
 

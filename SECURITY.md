@@ -2,7 +2,7 @@
 
 ## Supported release
 
-Version 0.2.1 is a local-testing source candidate. It has not completed the live Facebook and macOS browser acceptance gates. Only the latest source release receives planned fixes.
+Version 0.2.1 completed the automated battery (58 checks from a clean clone) and the live review-flow acceptance test on the owner account on 2026-10-12. A public Save test remains an explicit owner decision. Only the latest source release receives planned fixes.
 
 ## Security boundaries
 

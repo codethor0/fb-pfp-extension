@@ -28,7 +28,8 @@ def confirm_file(relative: str) -> bytes:
     if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(ROOT):
         raise ValueError(f'Missing or unsafe file: {relative}')
     data = path.read_bytes()
-    if relative not in {f'icons/icon{x}.png' for x in (16,48,128)}:
+    if (relative not in {f'icons/icon{x}.png' for x in (16,48,128)} and
+            not re.fullmatch(r'docs/(?:demo\.gif|screenshot-[a-z]+\.png)', relative)):
         try:
             text = data.decode('utf-8')
         except UnicodeError as exc:
@@ -51,6 +52,9 @@ def all_source_paths() -> list[str]:
             continue
         name = rel.as_posix()
         if name.startswith('icons/') and name in RUNTIME:
+            files.append(name)
+        elif re.fullmatch(r'docs/(?:demo\.gif|screenshot-[a-z]+\.png)', name):
+            # Synthetic marketing assets, allowlisted like the icons.
             files.append(name)
         elif path.suffix in SAFE_TEXT or name in SAFE_FILES:
             files.append(name)

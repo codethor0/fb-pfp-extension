@@ -269,7 +269,10 @@
   // Facebook serves staged previews from a CDN that taints canvases, which
   // makes direct getImageData sampling fail. The CDN allows cross-origin
   // reads from www.facebook.com, so re-fetch the bytes untainted and compare
-  // those. Same-origin, blob and data images are sampled directly.
+  // those. Same-origin, blob and data images are sampled directly. Fetched
+  // previews are size-capped: a hostile or broken page must not be able to
+  // push an unbounded image into createImageBitmap.
+  const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
   async function untaintedDrawable(image) {
     const src = previewSource(image);
     if (!src) return null;
@@ -278,7 +281,11 @@
     try {
       const response = await fetch(src, {credentials: 'omit', mode: 'cors'});
       if (!response.ok) return null;
-      return await createImageBitmap(await response.blob());
+      const declared = Number(response.headers.get('content-length'));
+      if (Number.isFinite(declared) && declared > MAX_PREVIEW_BYTES) return null;
+      const blob = await response.blob();
+      if (blob.size > MAX_PREVIEW_BYTES) return null;
+      return await createImageBitmap(blob);
     } catch {
       return null;
     }

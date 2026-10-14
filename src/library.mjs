@@ -3,6 +3,17 @@ const NAME = 'fb-pfp-library';
 const STORE = 'photos';
 const VERSION = 1;
 
+// Records in IndexedDB were written by savePhoto, but storage can be edited
+// or corrupted outside the extension. Every read validates shape so a bad
+// record degrades gracefully instead of bricking the popup or the worker.
+export function validPhotoRecord(photo) {
+  return !!photo &&
+    typeof photo === 'object' &&
+    /^[a-f0-9-]{36}$/.test(photo.id || '') &&
+    photo.blob instanceof Blob && photo.blob.type === 'image/jpeg' &&
+    Number.isFinite(photo.addedAt);
+}
+
 function requestValue(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -40,7 +51,9 @@ async function transact(mode, operation) {
 
 export async function listPhotos() {
   const photos = await transact('readonly', store => store.getAll());
-  return photos.sort((a, b) => a.addedAt - b.addedAt || a.id.localeCompare(b.id));
+  return photos
+    .filter(validPhotoRecord)
+    .sort((a, b) => a.addedAt - b.addedAt || a.id.localeCompare(b.id));
 }
 
 export function savePhoto(photo) {
@@ -56,5 +69,6 @@ export function deletePhoto(id) {
 }
 
 export async function getPhoto(id) {
-  return transact('readonly', store => store.get(id));
+  const photo = await transact('readonly', store => store.get(id));
+  return validPhotoRecord(photo) ? photo : null;
 }

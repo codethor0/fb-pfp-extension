@@ -10,7 +10,7 @@ const expected = ['storage', 'alarms'];
 const errors = [];
 const requireCheck = (ok, reason) => { if (!ok) errors.push(reason); };
 requireCheck(manifest.manifest_version === 3, 'Manifest V3 required');
-requireCheck(manifest.version === '0.2.3', 'Unexpected manifest version');
+requireCheck(manifest.version === '0.2.4', 'Unexpected manifest version');
 requireCheck(JSON.stringify(manifest.permissions) === JSON.stringify(expected), 'Permission set changed');
 requireCheck(JSON.stringify(manifest.host_permissions) === JSON.stringify(['https://www.facebook.com/*']), 'Host permissions broadened');
 requireCheck(manifest.background?.type === 'module', 'Background must use a module');
@@ -52,6 +52,10 @@ for (const path of paths) {
 }
 const serviceWorker = readFileSync(join(root,'src/background.mjs'),'utf8');
 const content = readFileSync(join(root,'src/content.js'),'utf8');
+const popupHtml = readFileSync(join(root,'src/popup.html'),'utf8');
+requireCheck(popupHtml.includes(`v${manifest.version}`), 'Popup version badge must match the manifest version');
+requireCheck(JSON.stringify(manifest.content_security_policy) ===
+  JSON.stringify({extension_pages: "script-src 'self'; object-src 'none'"}), 'Extension pages CSP must stay strict');
 requireCheck(!/\b(?:eval|Function)\s*\(/.test(serviceWorker+content), 'Dynamic execution found');
 requireCheck(/message\.publish !== true/.test(content), 'Review must not click Save');
 requireCheck(/await saveIfRequested\(/.test(content), 'Explicit publish action missing');
@@ -62,6 +66,8 @@ requireCheck(!/document\.querySelector(?:All)?\('input\[type="file"\]'\)(?!\.len
 // An input outside the dialog is used only when the dialog's own "Upload photo" button made Facebook click it, and only if it takes images alone.
 requireCheck(/takesOnlyImages\(progress\.requested\)/.test(content) && /removeEventListener\('click', onClick, true\)/.test(content), 'Captured upload input must be image-only and released');
 requireCheck(/Check the preview/.test(content), 'Content script review notice absent');
+requireCheck(/MAX_PREVIEW_BYTES/.test(content), 'Preview fetch must stay size-capped');
+requireCheck(/validPhotoRecord/.test(readFileSync(join(root,'src/library.mjs'),'utf8')), 'Photo records must be validated on read');
 if (errors.length) {
   console.error(`Audit blocked: ${errors.length} issue(s).\n`+errors.join('\n'));
   process.exit(1);

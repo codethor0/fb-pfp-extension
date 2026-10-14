@@ -1,7 +1,7 @@
 {
   "name": "fb-pfp-extension",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "description": "Free local-first Chrome and Brave Facebook profile picture rotator",
   "scripts": {

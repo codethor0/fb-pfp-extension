@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.4] - 2026-10-13
+
+Security hardening pass over the full attack surface; no behavior change for normal use.
+
+- The extension pages CSP now sets `object-src 'none'` (was `'self'`). No object or embed content is used anywhere.
+- Cross-origin preview re-fetches in the content script are size-capped (Content-Length and decoded body, 32 MiB), so a hostile or broken page cannot push an unbounded image into `createImageBitmap`.
+- IndexedDB photo records are validated on every read; a corrupted or tampered library degrades gracefully instead of bricking the popup or the worker.
+- Fixed the popup version badge, which still showed 0.2.2.
+- The release audit now pins the popup badge to the manifest version, requires the strict CSP, and tripwires the preview size cap and read-path record validation.
+- Added hostile-input regressions: userinfo and lookalike-host URL tricks, prototype-pollution shapes in settings and storage, unbounded `usedIds` and `lastResult`, NaN random sources, duplicate ids, malformed photo records, and multi-URL error redaction.
+
+
 ## [0.2.3] - 2026-10-12
 
 - Fixed the known CDN verification limitation from 0.2.2: Facebook serves the staged preview from its own CDN, which taints canvas sampling and made the pixel-match gate decline every automatic Save. The content script now re-fetches a cross-origin preview untainted (the CDN permits reads from www.facebook.com) and verifies those bytes before Save. Same-origin, blob and data previews are still sampled directly, and an unchanged strict tolerance applies.

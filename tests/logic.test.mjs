@@ -84,3 +84,47 @@ test('a review-only selection does not consume a photo',()=>{
   assert.equal(selectPhoto(photos,original,()=>0).id,'a');
   assert.deepEqual(original.usedIds,[]);
 });
+
+test('userinfo and lookalike hosts are not Facebook', () => {
+  assert.equal(isAllowedFacebookPage('https://www.facebook.com@evil.example/'), false);
+  assert.equal(isAllowedFacebookPage('https://www.facebook.com.:8443/'), false);
+  assert.equal(isAllowedFacebookPage('https://www.facebook.com.evil.example/'), false);
+  assert.equal(isAllowedFacebookPage('https://user:pass@www.facebook.com@evil.example/'), false);
+  assert.equal(isAllowedFacebookPage('javascript:alert(1)'), false);
+  assert.equal(isAllowedFacebookPage(''), false);
+  assert.equal(isAllowedFacebookPage(null), false);
+});
+
+test('settings sanitize survives hostile JSON shapes', () => {
+  const hostile = JSON.parse('{"__proto__": {"polluted": 1}, "mode": "random", "usedIds": {"$where": 1}}');
+  const r = sanitizeSettings(hostile);
+  assert.equal(r.mode, 'random');
+  assert.deepEqual(r.usedIds, []);
+  assert.equal(Object.prototype.polluted, undefined);
+  // Bulk garbage stays bounded.
+  const bulk = sanitizeSettings({usedIds: Array.from({length: 10000}, (_, i) => `id-${i}`)});
+  assert.equal(bulk.usedIds.length, 500);
+  assert.equal(bulk.usedIds.at(-1), 'id-9999');
+  // Non-string results and oversized logs are neutralized.
+  assert.equal(sanitizeSettings({lastResult: {toString: 'no'}}).lastResult, 'No runs yet.');
+  assert.equal(sanitizeSettings({lastResult: 'x'.repeat(10000)}).lastResult.length, 300);
+});
+
+test('selection rejects NaN RNG and duplicate ids safely', () => {
+  assert.throws(() => selectPhoto(photos, {mode: 'cycle'}, () => NaN), RangeError);
+  const dupes = [{id: 'a'}, {id: 'a'}, {id: 'b'}];
+  const pick = selectPhoto(dupes, {mode: 'cycle', usedIds: []}, () => 0.9);
+  assert.ok(['a', 'b'].includes(pick.id));
+});
+
+test('recordSaved refuses unknown ids', () => {
+  assert.throws(() => recordSaved(photos, sanitizeSettings(), 'zzz'), /removed/);
+});
+
+test('error display redacts every URL and caps length', () => {
+  const messy = safeDisplayError(new Error('a https://x.example/1 and http://y.example/2 ' + 'z'.repeat(500)));
+  assert.equal(messy.includes('https://'), false);
+  assert.equal(messy.includes('http://'), false);
+  assert.equal(messy.length, 200);
+  assert.equal(safeDisplayError('plain string failure'), 'plain string failure');
+});

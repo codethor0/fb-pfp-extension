@@ -94,6 +94,10 @@ Keep the existing Python CLI repository separate. Publish extensions from the ma
 
 The source may be released for free on GitHub. Chrome Web Store registration requires a one-time developer fee (typically USD $5) and acceptance is not guaranteed. A real account acceptance test and a separate review of platform terms must precede public publication. For more information, see [docs/chrome-web-store.md](docs/chrome-web-store.md), [docs/distribution.md](docs/distribution.md), and [docs/release-checklist.md](docs/release-checklist.md).
 
+## Roadmap
+
+Firefox port next, then more sites through the adapter architecture. Details and the never-list are in [ROADMAP](ROADMAP.md).
+
 ## Support the project
 
 fb-pfp is free, MIT-licensed, and has no ads, analytics, or paid tiers. If it saves you time, you can sponsor development:

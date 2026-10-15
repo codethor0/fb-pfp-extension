@@ -119,11 +119,16 @@ $('publish').addEventListener('click', () => {void run('PUBLISH_NEXT');});
 $('save').addEventListener('click', async () => {
   $('save').disabled = true;
   try {
-    await request({type: 'SAVE_SETTINGS', settings: {
+    const reply = await request({type: 'SAVE_SETTINGS', settings: {
       mode: $('mode').value,
       scheduleEnabled: $('schedule').checked,
       scheduleTime: $('time').value
     }});
+    // Reflect the stored values: an empty or invalid time field is corrected
+    // to the default server-side, and the field must not disagree with it.
+    $('mode').value = reply.settings.mode;
+    $('schedule').checked = reply.settings.scheduleEnabled;
+    $('time').value = reply.settings.scheduleTime;
     status($('schedule').checked ? 'Daily review saved. Browser must be open at that time.' :
       'Preferences saved. Daily review is off.');
   } catch (error) {status(error.message, true);}

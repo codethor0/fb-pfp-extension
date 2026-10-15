@@ -4,16 +4,20 @@ Where the project is going and why. Items ship when they are verified, not befor
 
 ## Now
 
-- Chrome Web Store review of the current build. The staged package is
-  replaced automatically the moment the package tab unlocks.
+- Chrome Web Store review of 0.2.5. A watcher checks the review outcome and
+  records it for the maintainer.
+- Firefox build support shipped in 0.3.0 (event-page module background,
+  `tools/build_firefox.py`). An AMO listing is pending maintainer keys.
 - Distribution: launch posts, demo GIF, store screenshots. Assets live in
   `docs/`.
 
 ## Next
 
-- **Firefox port.** The extension uses MV3 modules, IndexedDB and alarms,
-  all supported by Firefox. The port is packaging and test coverage, not a
-  rewrite.
+- **Automated Gecko engine coverage.** The offline DOM battery accepts
+  `--browser firefox`, but macOS 27 TCC blocks any sandboxed Firefox launch
+  (see microsoft/playwright#42768), so the harness reports SKIP there. On
+  machines where Firefox launches normally, the pass runs the full battery.
+  The Chromium pass remains the hard gate everywhere.
 
 ## After that
 

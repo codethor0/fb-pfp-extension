@@ -50,7 +50,11 @@ async function ensureAlarm() {
 
 async function restrictStorage() {
   // The Facebook content script does not need library or settings access.
-  await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  // setAccessLevel is a Chromium-only hardening API; Firefox has no
+  // equivalent and throws on unknown methods, so it is feature-detected.
+  if (typeof chrome.storage.local.setAccessLevel === 'function') {
+    await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  }
 }
 
 async function sendToNewTab(tabId, payload) {

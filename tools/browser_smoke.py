@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Offline content-flow regressions on synthetic DOM pages, never on Facebook."""
+import argparse
 import base64
 import io
 import os
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -118,11 +120,28 @@ def rectangular_payload(width, height):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--browser', choices=('chromium', 'firefox'), default='chromium',
+                        help='engine to run the synthetic DOM battery on')
+    args = parser.parse_args()
     with sync_playwright() as play:
         launch = {'headless': True}
-        if os.getenv('CHROMIUM_PATH'):
+        if args.browser == 'chromium' and os.getenv('CHROMIUM_PATH'):
             launch['executable_path'] = os.environ['CHROMIUM_PATH']
-        browser = play.chromium.launch(**launch)
+        if args.browser == 'firefox':
+            try:
+                browser = play.firefox.launch(headless=True)
+            except Exception as exc:
+                # Environment limitation, not a code failure: macOS 27 TCC
+                # blocks sandboxed processes from Firefox's app-data dir, so
+                # no Firefox can launch under this harness there. See
+                # microsoft/playwright#42768. The Chromium pass stays the
+                # hard gate; this pass is best effort.
+                print(f'SKIP: firefox engine unavailable here: {str(exc).splitlines()[0][:160]}')
+                return
+        else:
+            browser = play.chromium.launch(**launch)
+        print(f'PASS: harness launched on {args.browser} {browser.version}')
         try:
             source = CONTENT.read_text().replace('    validatePage();', '    // Synthetic page: no live Facebook origin.')
             for before, after in [('const WAIT_MS = 12000;', 'const WAIT_MS = 900;'),

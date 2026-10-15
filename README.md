@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/codethor0/fb-pfp-extension/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.4-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](CHANGELOG.md)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dfehebmpdngoaemfiigjndoecobjgldl.svg)](https://chromewebstore.google.com/detail/dfehebmpdngoaemfiigjndoecobjgldl)
 
-A free, open-source Chrome and Brave extension that uses photos you choose to prepare or change your own Facebook profile picture. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
+A free, open-source browser extension that uses photos you choose to prepare or change your own Facebook profile picture. Packages exist for Chrome, Brave and Firefox. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-**Version:** 0.2.4. The full automated battery (63 checks) passes from a clean clone, and the review flow has been verified against a live Facebook account. The Chrome Web Store listing was submitted for review on October 12, 2026 and will publish automatically once approved; approval time is up to Google.
+**Version:** 0.3.0. The full automated battery passes from a clean clone, and the review flow has been verified against a live Facebook account. Version 0.2.5 is pending review on the Chrome Web Store and will publish automatically once approved; approval time is up to Google.
 
 ## Features
 
@@ -42,6 +42,14 @@ Chrome and Brave require the Load unpacked interaction. A command-line script or
 
 If an earlier unpacked fb-pfp extension is installed, disable the old copy before loading this build. Data stored under a different extension ID will not migrate automatically. Re-import photos as needed.
 
+## Try it in Firefox (local, unsigned)
+
+1. Build the Firefox package: `python3 tools/build_firefox.py` produces `dist/fb-pfp-extension-v0.3.0-firefox.zip`.
+2. Open `about:debugging` in Firefox, select **This Firefox**, then **Load Temporary Add-on**, and pick the `manifest.json` from the extracted ZIP.
+3. A temporary add-on lasts until Firefox restarts. Pin it, sign in to Facebook normally in the same browser, and follow the same review-first steps as above.
+
+An AMO listing for one-click installation is pending; until it exists, the temporary add-on route is the supported way to run fb-pfp in Firefox.
+
 ## Rotation and scheduling
 
 Select **No repeats after successful Save** or **Random**, then click **Save preferences**. Preparing for review does not advance the rotation. Change now advances it only after the automation receives the Save dialog's closure acknowledgement. This acknowledgement is not independent proof that Facebook published the intended pixels, so confirm the result in your profile.
@@ -74,7 +82,7 @@ With Node.js 20+ and Python 3 installed, run **one command**:
 bash verify.sh --full
 ```
 
-It runs static security checks, 34 dependency-free unit tests, 52 content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed.
+It runs static security checks, dependency-free unit tests, content-flow regressions, popup tests, and a real Manifest V3 lifecycle test in a temporary browser profile. The lifecycle test checks all three image formats, metadata removal, exact photo persistence after browser restart, rotation and scheduled review. Synthetic Save controls are exercised; no real Facebook account or public picture is changed. It installs test-only Python packages and Playwright Chromium locally when needed, and attempts the same lifecycle pass against the Firefox engine when one is launchable, reporting SKIP honestly otherwise.
 
 ```bash
 bash verify.sh --offline    # Run mock-page tests without extension-worker lifecycle
@@ -96,7 +104,7 @@ The source may be released for free on GitHub. Chrome Web Store registration req
 
 ## Roadmap
 
-Firefox port next, then more sites through the adapter architecture. Details and the never-list are in [ROADMAP](ROADMAP.md).
+Firefox build support shipped in 0.3.0. Next is automated Gecko coverage on hosts that allow the engine launch, then more sites through the adapter architecture. Details and the never-list are in [ROADMAP](ROADMAP.md).
 
 ## Support the project
 

@@ -39,7 +39,8 @@ def main():
       window.chrome = window.chrome || {};
       window.chrome.runtime={async sendMessage(message){
         if(message.type==='GET_SETTINGS')return {ok:true,settings:{mode:'cycle',scheduleEnabled:false,scheduleTime:'09:15',lastResult:'Ready.'}};
-        if(message.type==='SAVE_SETTINGS')return {ok:true,settings:message.settings};
+        if(message.type==='SAVE_SETTINGS')return {ok:true,settings:{...message.settings,
+          scheduleTime: message.settings.scheduleTime || '09:15'}};
         if(message.type==='PREPARE_NEXT')return {ok:true,name:'test-image.jpg',saved:false};
         if(message.type==='PUBLISH_NEXT')return {ok:true,name:'test-image.jpg',saved:true};
         return {ok:false,error:'Unknown'};

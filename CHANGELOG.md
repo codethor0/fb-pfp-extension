@@ -1,8 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-10-15
 
 - No-repeat rotation no longer opens a new round with the photo that was just saved. When the last unused photo is saved, the round resets but keeps that photo marked as used, so with 2 or more photos the next pick always differs (before, it repeated with probability 1/N, for example 34% with three photos). A single photo still repeats, as it must.
+- The popup now reflects the stored schedule time after saving preferences instead of rendering an empty time field when the stored default differed from the control's initial value.
+- Added Firefox build support: `python3 tools/build_firefox.py` emits an unsigned Firefox package from the same source. Firefox runs the background as an event page module through a thin wrapper, and the storage access-level call (a Chromium-only API) is now feature-detected. The package installs temporarily from `about:debugging`; an AMO listing is pending.
+- Honest CI note: the dual-engine lifecycle pass runs the Firefox engine when available and reports SKIP on macOS hosts where the sandboxed engine launch is blocked by system privacy controls. Chromium remains the hard gate; nothing is claimed green from a skipped engine.
 
 ## [0.2.5] - 2026-10-15
 

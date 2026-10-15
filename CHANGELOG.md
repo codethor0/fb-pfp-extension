@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1] - 2026-10-15
+
+- The Firefox manifest now declares `data_collection_permissions: {required: ["none"]}`, which addons.mozilla.org has required for every new add-on since 2025-11-03. Without this key the upload is rejected at validation time.
+- The Firefox background now points `background.scripts` directly at `src/background.mjs` with `type: "module"`; the `src/background-firefox.js` wrapper from 0.3.0 is removed. Firefox honors module background scripts, so the indirection served no purpose.
+- The Firefox floor is now desktop 140.0 and Android 142.0, the versions where Firefox's built-in data consent prompt exists; the built package also declares `gecko_android`.
+- The release audit tripwires these Firefox invariants: the AMO data declaration must exist, the background path must come from the Chromium service worker entry, and the removed wrapper must stay removed.
+
 ## [0.3.0] - 2026-10-15
 
 - No-repeat rotation no longer opens a new round with the photo that was just saved. When the last unused photo is saved, the round resets but keeps that photo marked as used, so with 2 or more photos the next pick always differs (before, it repeated with probability 1/N, for example 34% with three photos). A single photo still repeats, as it must.

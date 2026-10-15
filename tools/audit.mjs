@@ -1,5 +1,5 @@
 // Dependency-free release checks. Never scan or package runtime user pictures.
-import {readdirSync, readFileSync, statSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
@@ -10,7 +10,7 @@ const expected = ['storage', 'alarms'];
 const errors = [];
 const requireCheck = (ok, reason) => { if (!ok) errors.push(reason); };
 requireCheck(manifest.manifest_version === 3, 'Manifest V3 required');
-requireCheck(manifest.version === '0.3.0', 'Unexpected manifest version');
+requireCheck(manifest.version === '0.3.1', 'Unexpected manifest version');
 requireCheck(JSON.stringify(manifest.permissions) === JSON.stringify(expected), 'Permission set changed');
 requireCheck(JSON.stringify(manifest.host_permissions) === JSON.stringify(['https://www.facebook.com/*']), 'Host permissions broadened');
 requireCheck(manifest.background?.type === 'module', 'Background must use a module');
@@ -69,10 +69,13 @@ requireCheck(/Check the preview/.test(content), 'Content script review notice ab
 requireCheck(/MAX_PREVIEW_BYTES/.test(content), 'Preview fetch must stay size-capped');
 requireCheck(/validPhotoRecord/.test(readFileSync(join(root,'src/library.mjs'),'utf8')), 'Photo records must be validated on read');
 // Cross-browser invariants: the Chromium manifest stays Chrome-Web-Store-clean,
-// and the Firefox event-page wrapper must keep importing the shared module tree.
+// and the Firefox build transform must keep the AMO-required declarations.
 requireCheck(!('browser_specific_settings' in manifest), 'Chromium manifest must not carry gecko settings');
-const firefoxWrapper = readFileSync(join(root,'src/background-firefox.js'),'utf8');
-requireCheck(/import '\.\/background\.mjs';/.test(firefoxWrapper), 'Firefox wrapper must import the shared background');
+const firefoxBuild = readFileSync(join(root,'tools/build_firefox.py'),'utf8');
+requireCheck(/data_collection_permissions/.test(firefoxBuild), 'Firefox build must declare data collection for AMO');
+requireCheck(/\[worker\['service_worker'\]\]/.test(firefoxBuild), 'Firefox background must reuse the Chromium worker path');
+requireCheck(!/background-firefox\.js/.test(firefoxBuild), 'Firefox build must not reference the removed wrapper');
+requireCheck(!existsSync(join(root,'src/background-firefox.js')), 'Obsolete Firefox wrapper must stay removed');
 requireCheck(/typeof chrome\.storage\.local\.setAccessLevel === 'function'/.test(serviceWorker),
   'Chromium-only storage APIs must be feature-detected for Firefox');
 if (errors.length) {

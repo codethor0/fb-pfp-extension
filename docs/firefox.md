@@ -38,10 +38,9 @@ before ever pressing **Change profile picture now**.
 ## Status
 
 Verified live on Firefox (2026-10-15, fb-pfp 0.4.0): the temporary add-on
-installed into a real Firefox profile, the popup imported a JPEG through the
-file input, and a Prepare run opened the maintainer's real profile, staged
-the photo into Facebook's "Choose profile picture" dialog, verified the
-preview, and stopped before Save. The Firefox build is no longer
-experimental for the review flow. The Change now path (automatic Save) has
-not been exercised on Firefox and stays gated behind the same explicit
-confirmation as everywhere else.
+installed into a real Firefox profile; a Prepare run staged a photo into the
+live Choose profile picture dialog, verified the preview, and stopped before
+Save; and a Change now run clicked Save through the explicit checkbox gate,
+received Facebook's acknowledgement, and published the new profile picture
+(confirmed on the reloaded profile). Both review and publish paths are
+verified end to end on Firefox.

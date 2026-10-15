@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_SETTINGS, sanitizeSettings, isValidTime,
-  selectPhoto, recordSaved, nextScheduledTime, isAllowedFacebookPage, safeDisplayError
+  selectPhoto, recordSaved, nextScheduledTime, isAllowedFacebookPage, safeDisplayError,
+  shouldCloseScheduledTab
 } from '../src/logic.mjs';
 import { imageFormat, safePhotoName } from '../src/images.mjs';
 
@@ -127,4 +128,21 @@ test('error display redacts every URL and caps length', () => {
   assert.equal(messy.includes('http://'), false);
   assert.equal(messy.length, 200);
   assert.equal(safeDisplayError('plain string failure'), 'plain string failure');
+});
+
+test('scheduled tab closes only when unstaged and unfocused', () => {
+  assert.equal(shouldCloseScheduledTab({active: false, staged: false}), true);
+  assert.equal(shouldCloseScheduledTab({active: true, staged: false}), false);
+  assert.equal(shouldCloseScheduledTab({active: false, staged: true}), false);
+  assert.equal(shouldCloseScheduledTab({active: true, staged: true}), false);
+  assert.equal(shouldCloseScheduledTab({}), true);
+});
+
+test('review tab id sanitizes to integer or null', () => {
+  assert.equal(sanitizeSettings({reviewTabId: 42}).reviewTabId, 42);
+  assert.equal(sanitizeSettings({reviewTabId: 0}).reviewTabId, 0);
+  assert.equal(sanitizeSettings().reviewTabId, null);
+  for (const bad of [-1, 1.5, '7', '7;eval', {}, [7]]) {
+    assert.equal(sanitizeSettings({reviewTabId: bad}).reviewTabId, null);
+  }
 });

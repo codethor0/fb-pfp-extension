@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.5] - 2026-10-15
+
+- Scheduled daily reviews reuse the Facebook tab a previous scheduled run left open instead of opening a new one every day. The tab qualifies only while it still shows an allowed Facebook page and is not focused. After a failed scheduled run the tab closes itself only when nothing was staged into the dialog and it is not the active tab; successful runs keep and remember the tab. Runs started from the popup never close or reuse tabs.
+- The profile-picture dialog is matched by accessible name first. A dialog named something else, for example "Create post", whose body text mentions profile pictures is no longer mistaken for the target dialog, and a named profile-picture dialog wins over an unnamed lookalike.
+- A previously verified preview image must still be visible to gate Save; a hidden or superseded image no longer authorizes an automatic Save.
+- The popup status line is height-capped and scrolls, so many failed imports can no longer grow over the controls.
+- Added regressions for all four fixes. The full battery now passes 66 checks from a clean clone.
+
+
 ## [0.2.4] - 2026-10-13
 
 Security hardening pass over the full attack surface; no behavior change for normal use.

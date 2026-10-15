@@ -73,8 +73,13 @@
   }
 
   function profileDialogs() {
-    const matches = [...document.querySelectorAll('[role="dialog"], dialog')]
-      .filter(el => visible(el) && /profile picture/i.test(`${el.getAttribute('aria-label') || ''} ${el.textContent || ''}`));
+    const dialogs = [...document.querySelectorAll('[role="dialog"], dialog')].filter(visible);
+    // Match on the accessible name first. A dialog named something else, such
+    // as "Create post", can mention profile pictures in its body text without
+    // being the profile-picture dialog, so named non-matches are excluded.
+    const named = dialogs.filter(el => /profile picture/i.test(accessibleName(el)));
+    const matches = named.length ? named
+      : dialogs.filter(el => !accessibleName(el) && /profile picture/i.test(el.textContent || ''));
     // One dialog can sit inside another; the outermost one holds everything.
     return matches.filter(el => !matches.some(other => other !== el && other.contains(el)));
   }
@@ -302,8 +307,10 @@
   }
 
   function readyPreview(dialog, before) {
+    // A verified source can belong to an image that was later hidden or
+    // superseded; only a currently visible image may gate Save.
     const images = [...dialog.querySelectorAll('img')].filter(image =>
-      before.verified.has(previewSource(image)));
+      before.verified.has(previewSource(image)) && visible(image));
     if (images[0]) return images[0];
     const canvases = [...dialog.querySelectorAll('canvas')].filter(canvas => {
       const box = canvas.getBoundingClientRect();

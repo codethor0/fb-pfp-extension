@@ -4,7 +4,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   scheduleEnabled: false,
   scheduleTime: '09:15',
   usedIds: [],
-  lastResult: 'No runs yet.'
+  lastResult: 'No runs yet.',
+  reviewTabId: null
 });
 
 export function isValidTime(time) {
@@ -17,11 +18,13 @@ export function sanitizeSettings(input = {}) {
   const usedIds = Array.isArray(input.usedIds)
     ? [...new Set(input.usedIds.filter(id => typeof id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(id)))].slice(-500)
     : [];
+  const reviewTabId = Number.isInteger(input.reviewTabId) && input.reviewTabId >= 0 ? input.reviewTabId : null;
   return {
     mode,
     scheduleEnabled: input.scheduleEnabled === true,
     scheduleTime,
     usedIds,
+    reviewTabId,
     lastResult: typeof input.lastResult === 'string' ? input.lastResult.slice(0, 300) : DEFAULT_SETTINGS.lastResult
   };
 }
@@ -60,6 +63,13 @@ export function isAllowedFacebookPage(url) {
     const parsed = new URL(url);
     return parsed.protocol === 'https:' && parsed.hostname === 'www.facebook.com';
   } catch { return false; }
+}
+
+// A scheduled run closes its tab only when nothing was staged into Facebook's
+// dialog and the user has not focused the tab since. Anything else keeps the
+// tab so the user can inspect or retry it.
+export function shouldCloseScheduledTab({active, staged}) {
+  return active !== true && staged !== true;
 }
 
 export function safeDisplayError(error) {

@@ -55,6 +55,8 @@ LAYOUTS = {
     'late-unrelated-input': "add(dialogHtml(CONTENT));add('<input id=\"unrelated\" type=\"file\" accept=\"image/*\">');document.querySelector('#upload').addEventListener('click',()=>setTimeout(()=>document.querySelector('#unrelated').click(),200));",
     'multiple-requested-inputs': "add(dialogHtml(CONTENT));document.querySelector('#upload').addEventListener('click',()=>{makeInput(document.body).click();makeInput(document.body).click();});",
     'accept-less-input': "add(dialogHtml(CONTENT+'<input id=\"noaccept\" type=\"file\">'));",
+    'wrong-name-mentions-picture': 'add(\'<div role="dialog" id="post-dialog" aria-label="Create post"><h2>Create post</h2>\'+TARGET+\'<p>Pick a profile picture angle for this post</p></div>\');',
+    'named-wins-over-unnamed': 'add(dialogHtml(CONTENT+TARGET));add(\'<div role="dialog" id="unnamed"><p>profile picture</p><input id="decoy" type="file" accept="image/*"></div>\');',
 }
 CHANGES = {
     'accepted': 'preview(file);',
@@ -78,6 +80,7 @@ CHANGES = {
     'cdn-preview': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/staged.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
     'cdn-wrong': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/wrong.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
     'centered-crop': "const canvas=document.createElement('canvas');canvas.width=canvas.height=180;document.querySelector('[role=\"dialog\"]').appendChild(canvas);const img=new Image();img.onload=()=>{const size=Math.min(img.naturalWidth,img.naturalHeight);canvas.getContext('2d').drawImage(img,(img.naturalWidth-size)/2,(img.naturalHeight-size)/2,size,size,0,0,180,180);window.__accepted=true;};img.src=URL.createObjectURL(file);",
+    'hidden-after-verify': 'preview(file);setTimeout(()=>{document.querySelector("#preview").style.display="none";},50);',
 }
 SAVES = {
     'close': "document.querySelector('[role=\"dialog\"]').remove();",
@@ -231,6 +234,18 @@ def main():
             page.close()
             print('PASS: a native user click on an unrelated file input cannot redirect the upload')
 
+            reply, page = run(fixture(layout='wrong-name-mentions-picture'), True)
+            assert reply.get('ok') is False and page.evaluate('window.__changed') == [], reply
+            assert page.evaluate('window.__saved') == 0
+            page.close()
+            print('PASS: a dialog with a different name that mentions profile pictures is not the target dialog')
+
+            reply, page = run(fixture(layout='named-wins-over-unnamed'), True)
+            assert reply.get('ok') is True and reply.get('saved') is True, reply
+            assert page.evaluate('window.__changed') == ['target']
+            page.close()
+            print('PASS: a named profile-picture dialog wins over an unnamed lookalike')
+
             reply, page = run(fixture())
             assert reply.get('ok') is True, reply
             changed = page.evaluate('window.__changed')
@@ -244,7 +259,7 @@ def main():
             print('PASS: a message from another extension id is ignored')
 
             for change in ('ignored', 'rejected', 'broken-preview', 'empty-canvas', 'thumbnail-only',
-                           'unrelated-gallery', 'unrelated-canvas', 'unreadable-preview'):
+                           'unrelated-gallery', 'unrelated-canvas', 'unreadable-preview', 'hidden-after-verify'):
                 reply, page = run(fixture(change=change), True)
                 assert reply.get('ok') is False, (change, reply)
                 assert page.evaluate('window.__saved') == 0

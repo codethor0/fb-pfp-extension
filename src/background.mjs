@@ -1,7 +1,7 @@
 import { listPhotos, getPhoto } from './library.mjs';
 import {
   DEFAULT_SETTINGS, sanitizeSettings, selectPhoto, recordSaved,
-  nextScheduledTime, isAllowedFacebookPage, safeDisplayError
+  nextScheduledTime, isAllowedFacebookPage, safeDisplayError, shouldCloseScheduledTab
 } from './logic.mjs';
 import { encodePhoto } from './transfer.mjs';
 
@@ -73,8 +73,50 @@ async function sendToNewTab(tabId, payload) {
   throw new Error('Timed out waiting for Facebook or the content script');
 }
 
+// Reuse the tab a previous scheduled run left open instead of piling up a new
+// Facebook tab every day. The tab qualifies only while it still shows an
+// allowed Facebook page and the user has not focused it for something else.
+async function reuseReviewTab(tabId) {
+  if (!Number.isInteger(tabId)) return null;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab && tab.active !== true && isAllowedFacebookPage(tab.url || '')) {
+      await chrome.tabs.update(tabId, {url: FACEBOOK_PROFILE, active: false});
+      return {id: tabId};
+    }
+  } catch { /* The tab was closed or the navigation failed; open a fresh one. */ }
+  return null;
+}
+
+async function isTabActive(tabId) {
+  try { return (await chrome.tabs.get(tabId))?.active === true; }
+  catch { return false; }
+}
+
+// After a scheduled run settles, close the tab only when nothing was staged
+// into Facebook's dialog and the tab is not focused; otherwise keep it and
+// remember it for the next scheduled run.
+async function reconcileScheduledTab(tabId, staged) {
+  if (shouldCloseScheduledTab({active: await isTabActive(tabId), staged})) {
+    try { await chrome.tabs.remove(tabId); } catch { /* Already closed. */ }
+    await rememberReviewTab(null);
+  } else {
+    await rememberReviewTab(tabId);
+  }
+}
+
+async function rememberReviewTab(tabId) {
+  await updateSettings(async settings => {
+    const next = {...settings, reviewTabId: tabId};
+    await writeSettings(next);
+    return next;
+  });
+}
+
 async function runPhoto({source, publish}) {
   if (runInFlight) return {ok: false, error: 'A profile photo operation is already running'};
+  let scheduledTabId = null;
+  let staged = false;
   // The service worker owns the operation; closing the popup does not stop it.
   const operation = (async () => {
     const settings = await readSettings();
@@ -88,9 +130,17 @@ async function runPhoto({source, publish}) {
     const photo = await getPhoto(selected.id);
     if (!photo?.blob) throw new Error('The selected photo was removed. Try again.');
     const base64 = await encodePhoto(photo.blob);
-    // Alarm-initiated runs open the tab in the background so a scheduled review
-    // never steals focus; user-initiated runs open in the foreground.
-    const tab = await chrome.tabs.create({url: FACEBOOK_PROFILE, active: source !== 'alarm'});
+    // Alarm-initiated runs reuse the tab a previous scheduled run left open,
+    // falling back to a new background tab so a scheduled review never steals
+    // focus; user-initiated runs open in the foreground and never reuse.
+    let tab;
+    if (source === 'alarm') {
+      tab = await reuseReviewTab(settings.reviewTabId) ||
+        await chrome.tabs.create({url: FACEBOOK_PROFILE, active: false});
+      scheduledTabId = tab.id;
+    } else {
+      tab = await chrome.tabs.create({url: FACEBOOK_PROFILE, active: true});
+    }
     if (!Number.isInteger(tab.id)) throw new Error('Could not open your Facebook profile');
     const result = await sendToNewTab(tab.id, {
       type: 'PREPARE_PHOTO',
@@ -99,6 +149,7 @@ async function runPhoto({source, publish}) {
       fileName: 'profile-photo.jpg',
       data: base64
     });
+    staged = result?.ok === true;
     if (!result?.ok) throw new Error(result?.error || 'Facebook did not accept the image');
     // A completed review does not use up a picture. A Save click does, even when
     // Facebook never confirmed the result: retrying the same photo immediately
@@ -129,12 +180,18 @@ async function runPhoto({source, publish}) {
     return {ok: true, saved: false, name: selected.originalName, tabId: tab.id};
   })();
   runInFlight = operation;
-  try { return await operation; }
+  let outcome;
+  try { outcome = await operation; }
   catch (error) {
     const message = safeDisplayError(error);
     await writeResult(`Operation failed: ${message}`).catch(() => {});
-    return {ok: false, error: message};
-  } finally { runInFlight = null; }
+    outcome = {ok: false, error: message};
+  }
+  if (source === 'alarm' && Number.isInteger(scheduledTabId)) {
+    await reconcileScheduledTab(scheduledTabId, staged).catch(() => {});
+  }
+  runInFlight = null;
+  return outcome;
 }
 
 async function handleMessage(message, sender) {

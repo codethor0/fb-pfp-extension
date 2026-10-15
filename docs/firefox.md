@@ -37,9 +37,11 @@ before ever pressing **Change profile picture now**.
 
 ## Status
 
-The manifest transform and the package contents are covered by offline checks,
-and the full verification battery runs the same lifecycle tests against the
-Firefox engine on hosts that allow the sandboxed launch (it reports SKIP
-honestly where they do not). The upload hand-off into Facebook's dialog has
-not yet been verified live on Firefox. Treat the Firefox build as experimental
-until a Prepare run completes against a real profile page in Firefox.
+Verified live on Firefox (2026-10-15, fb-pfp 0.4.0): the temporary add-on
+installed into a real Firefox profile, the popup imported a JPEG through the
+file input, and a Prepare run opened the maintainer's real profile, staged
+the photo into Facebook's "Choose profile picture" dialog, verified the
+preview, and stopped before Save. The Firefox build is no longer
+experimental for the review flow. The Change now path (automatic Save) has
+not been exercised on Firefox and stays gated behind the same explicit
+confirmation as everywhere else.

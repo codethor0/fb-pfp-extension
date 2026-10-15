@@ -33,7 +33,21 @@ test('cycle no repeats, resets after all saved', () => {
     s = recordSaved(photos,s,p.id);
   }
   assert.deepEqual(picked,['a','b','c']);
+  // The new round starts with the last saved photo excluded.
+  assert.deepEqual(s.usedIds,['c']);
+});
+test('a new round never opens by repeating the photo just saved', () => {
+  let s = {...sanitizeSettings(), usedIds:['a','b']};
+  s = recordSaved(photos,s,'c');
+  for (const r of [0, 0.34, 0.5, 0.67, 0.999]) {
+    assert.notEqual(selectPhoto(photos,s,()=>r).id,'c');
+  }
+});
+test('a single photo can only repeat itself and still resets', () => {
+  const one=[photos[0]];
+  const s = recordSaved(one,sanitizeSettings(),'a');
   assert.deepEqual(s.usedIds,[]);
+  assert.equal(selectPhoto(one,s,()=>0).id,'a');
 });
 test('random mode can repeat and honors RNG', () => {
   assert.equal(selectPhoto(photos,{mode:'random',usedIds:['a']},()=>0).id,'a');

@@ -45,7 +45,11 @@ export function recordSaved(photos, settings, id) {
   if (!ids.includes(id)) throw new Error('Photo was removed before the save completed');
   const previous = (settings.usedIds || []).filter(x => ids.includes(x));
   const used = [...new Set([...previous, id])];
-  return { ...settings, usedIds: used.length >= ids.length ? [] : used };
+  // A finished round starts a new one. Keep the photo just saved marked as
+  // used so the new round cannot open by repeating it. With a single photo
+  // there is nothing else to choose, so the round simply resets.
+  if (used.length >= ids.length) return { ...settings, usedIds: ids.length > 1 ? [id] : [] };
+  return { ...settings, usedIds: used };
 }
 
 export function nextScheduledTime(now, time) {

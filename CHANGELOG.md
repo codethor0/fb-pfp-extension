@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- No-repeat rotation no longer opens a new round with the photo that was just saved. When the last unused photo is saved, the round resets but keeps that photo marked as used, so with 2 or more photos the next pick always differs (before, it repeated with probability 1/N, for example 34% with three photos). A single photo still repeats, as it must.
+
 ## [0.2.5] - 2026-10-15
 
 - Scheduled daily reviews reuse the Facebook tab a previous scheduled run left open instead of opening a new one every day. The tab qualifies only while it still shows an allowed Facebook page and is not focused. After a failed scheduled run the tab closes itself only when nothing was staged into the dialog and it is not the active tab; successful runs keep and remember the tab. Runs started from the popup never close or reuse tabs.

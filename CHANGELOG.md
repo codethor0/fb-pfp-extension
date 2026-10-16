@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.1] - 2026-10-15
+
+- The Firefox add-on id is now `fb-pfp@codethor0.github.io`, matching the maintainer's GitHub namespace. AMO add-on ids are effectively permanent, so this was corrected before the first submission; the previous id pointed at a github.io subdomain the maintainer does not control.
+- Added docs/amo-listing.md: a paste-ready AMO listing draft (name, summary, description, category, license, privacy notes and reviewer notes) so submission is a copy-paste once the maintainer creates a Mozilla account.
+
 ## [0.4.0] - 2026-10-15
 
 - Added the site-adapter architecture: site-specific labels and page guards now live in per-site adapters while the scoped upload, untainted preview verification and the gated Save flow stay shared core. Facebook remains the only enabled adapter.

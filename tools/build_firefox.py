@@ -36,7 +36,7 @@ RUNTIME = [
     'icons/icon16.png', 'icons/icon48.png', 'icons/icon128.png',
     'README.md', 'LICENSE', 'PRIVACY.md', 'SECURITY.md',
 ]
-GECKO_ID = 'fb-pfp@codethor.github.io'
+GECKO_ID = 'fb-pfp@codethor0.github.io'
 STRICT_MIN_VERSION = '140.0'
 STRICT_MIN_VERSION_ANDROID = '142.0'
 NO_DATA_COLLECTION = {'required': ['none']}

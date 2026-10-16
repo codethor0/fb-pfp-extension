@@ -26,10 +26,11 @@ change the profile picture on your own Facebook account.
 You keep a small library of photos inside the extension, stored locally in
 your browser. Pick one, press Prepare for review, and fb-pfp opens
 Facebook's own profile-picture dialog with your photo loaded so you can
-check the crop before anything is published. Nothing is ever uploaded or
-saved without an explicit second step: check the acknowledgment box and
+check the crop before anything is published. Nothing is published
+without an explicit second step: check the acknowledgment box and
 press Change profile picture now, and only then does the extension click
-Save inside the dialog.
+Save inside the dialog. Placing a photo in the dialog hands it to
+Facebook, exactly as a manual change would, even before you press Save.
 
 What fb-pfp does:
 

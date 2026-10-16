@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.2] - 2026-10-16
+
+- A Save click that Facebook never confirms is no longer reported as acknowledged. The on-page notice and the popup status both said "Save acknowledged" for an unconfirmed Save (cancel, error or a dialog that never settled), even though the rotation state and the stored result were already correct. Both now say the Save was clicked but not confirmed. Regressions cover the popup and the page notice for every unconfirmed case.
+- A transient failure to fetch a cross-origin preview image no longer poisons verification for the rest of the wait. The untainted re-fetch is retried up to two times with a short delay; a preview that keeps failing still blocks Save, and mismatched pixels still never pass.
+
 ## [0.4.1] - 2026-10-15
 
 - The Firefox add-on id is now `fb-pfp@codethor0.github.io`, matching the maintainer's GitHub namespace. AMO add-on ids are effectively permanent, so this was corrected before the first submission; the previous id pointed at a github.io subdomain the maintainer does not control.

@@ -152,17 +152,42 @@ def main():
                                   ('const SAVE_WAIT_MS = 30000;', 'const SAVE_WAIT_MS = 1400;')]:
                 source = source.replace(before, after)
 
-            def run(html, publish=False, user_input=False, data=None, routes=None):
+            def run(html, publish=False, user_input=False, data=None, routes=None, flaky_routes=None, fail_routes=None):
                 page = browser.new_page()
                 page.on('filechooser', lambda chooser: None)  # Intercept native pickers in negative fixtures.
-                if routes:
+                if routes or flaky_routes or fail_routes:
                     def make_handler(payload):
                         def handler(route):
                             route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
                                           headers={'access-control-allow-origin': '*'})
                         return handler
-                    for pattern, body in routes:
+                    for pattern, body in (routes or []):
                         page.route(pattern, make_handler(body))
+                    for pattern, body in (flaky_routes or []):
+                        def make_flaky(payload):
+                            state = {'requests': 0}
+                            def flaky_handler(route):
+                                if route.request.resource_type != 'fetch':
+                                    # Keep the element load working so the image stays a candidate.
+                                    route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
+                                                  headers={'access-control-allow-origin': '*'})
+                                    return
+                                state['requests'] += 1
+                                if state['requests'] == 1:
+                                    route.abort()
+                                else:
+                                    route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
+                                                  headers={'access-control-allow-origin': '*'})
+                            return flaky_handler
+                        page.route(pattern, make_flaky(body))
+                    for pattern in (fail_routes or []):
+                        def fail_handler(route):
+                            if route.request.resource_type != 'fetch':
+                                route.fulfill(body=base64.b64decode(image_payload()), content_type='image/jpeg',
+                                              headers={'access-control-allow-origin': '*'})
+                            else:
+                                route.abort()
+                        page.route(pattern, fail_handler)
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.set_content(html)
@@ -234,6 +259,19 @@ def main():
             assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
             page.close()
             print('PASS: a cross-origin CDN preview with different pixels never reaches Save')
+
+            reply, page = run(fixture(change='cdn-preview'), True,
+                              flaky_routes=[('http://cdn.fb-pfp.fixture/staged.jpg', image_payload())])
+            assert reply.get('ok') is True and reply.get('saved') is True, reply
+            assert page.evaluate('window.__saved') == 1
+            page.close()
+            print('PASS: a transient CDN fetch failure is retried and the preview still verifies before Save')
+
+            reply, page = run(fixture(change='cdn-preview'), True,
+                              fail_routes=['http://cdn.fb-pfp.fixture/staged.jpg'])
+            assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
+            page.close()
+            print('PASS: a CDN preview that keeps failing never reaches Save')
 
             for layout in ('missing-input', 'composer-click', 'ambiguous-inputs', 'ambiguous-dialogs',
                            'late-unrelated-input', 'multiple-requested-inputs', 'accept-less-input'):
@@ -315,12 +353,15 @@ def main():
                 assert (reply.get('ok') is True and reply.get('saved') is True
                         and reply.get('confirmed') is False), (save, reply)
                 assert page.evaluate('window.__saved') == 1
+                toast = page.locator('#fb-pfp-status').text_content()
+                assert 'acknowledged' not in toast and 'did not confirm' in toast, (save, toast)
                 page.close()
                 print('PASS:', save, 'counts the Save click as used without claiming confirmation')
 
             reply, page = run(fixture(save='shell-gap-close'), True)
             assert reply.get('ok') is True and reply.get('saved') is True and reply.get('confirmed') is True, reply
             assert page.locator('[role="dialog"]').count() == 0
+            assert 'acknowledged' in page.locator('#fb-pfp-status').text_content()
             page.close()
             print('PASS: replacement shell must finish closing before acknowledgement')
 

@@ -7,7 +7,7 @@
 
 A free, open-source browser extension that uses photos you choose to prepare or change your own Facebook profile picture. Packages exist for Chrome, Brave and Firefox. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-**Version:** 0.4.1. The full automated battery passes from a clean clone, and the review flow has been verified against a live Facebook account. Version 0.2.5 is pending review on the Chrome Web Store and will publish automatically once approved; approval time is up to Google.
+**Version:** 0.4.2. The full automated battery passes from a clean clone, and the review flow has been verified against a live Facebook account. Version 0.2.5 is pending review on the Chrome Web Store and will publish automatically once approved; approval time is up to Google.
 
 ## Features
 
@@ -44,7 +44,7 @@ If an earlier unpacked fb-pfp extension is installed, disable the old copy befor
 
 ## Try it in Firefox (local, unsigned)
 
-1. Build the Firefox package: `python3 tools/build_firefox.py` produces `dist/fb-pfp-extension-v0.4.1-firefox.zip`.
+1. Build the Firefox package: `python3 tools/build_firefox.py` produces `dist/fb-pfp-extension-v0.4.2-firefox.zip`.
 2. Open `about:debugging` in Firefox, select **This Firefox**, then **Load Temporary Add-on**, and pick the `manifest.json` from the extracted ZIP.
 3. A temporary add-on lasts until Firefox restarts. Pin it, sign in to Facebook normally in the same browser, and follow the same review-first steps as above.
 

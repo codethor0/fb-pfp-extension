@@ -42,7 +42,9 @@ def main():
         if(message.type==='SAVE_SETTINGS')return {ok:true,settings:{...message.settings,
           scheduleTime: message.settings.scheduleTime || '09:15'}};
         if(message.type==='PREPARE_NEXT')return {ok:true,name:'test-image.jpg',saved:false};
-        if(message.type==='PUBLISH_NEXT')return {ok:true,name:'test-image.jpg',saved:true};
+        if(message.type==='PUBLISH_NEXT')return window.__unconfirmed
+          ? {ok:true,name:'test-image.jpg',saved:true,confirmed:false}
+          : {ok:true,name:'test-image.jpg',saved:true,confirmed:true};
         return {ok:false,error:'Unknown'};
       }};
     '''
@@ -70,6 +72,16 @@ def main():
             page.locator('#publish').click()
             page.wait_for_function("document.querySelector('#status').textContent.includes('Save acknowledged')")
             assert page.locator('#publish').is_disabled()
+            # An unconfirmed Save must never be shown as acknowledged.
+            page.evaluate('window.__unconfirmed = true')
+            page.locator('#confirm-publish').check()
+            page.locator('#publish').click()
+            page.wait_for_function("document.querySelector('#status').textContent.includes('did not confirm')")
+            unconfirmed_text = page.locator('#status').text_content()
+            assert 'acknowledged' not in unconfirmed_text, unconfirmed_text
+            assert 'error' in (page.locator('#status').get_attribute('class') or ''), 'unconfirmed Save must use the error style'
+            page.evaluate('window.__unconfirmed = false')
+            print('PASS: popup does not call an unconfirmed Save acknowledged')
             page.locator('#prepare').click()
             page.wait_for_function("document.querySelector('#status').textContent.includes('Ready for review in the Facebook tab')")
             page.locator('#schedule').check()

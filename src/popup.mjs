@@ -96,7 +96,12 @@ async function run(type) {
       await request({type: 'SAVE_SETTINGS', settings: {...current.settings, mode: $('mode').value}});
     }
     const reply = await request({type});
-    if (reply.saved) status(reply.warning || `${reply.name}: Save acknowledged. Verify the result on Facebook.`, !!reply.warning);
+    if (reply.saved) {
+      const unconfirmed = reply.confirmed === false;
+      status(reply.warning || (unconfirmed
+        ? `${reply.name}: Save clicked, but Facebook did not confirm it. Verify your profile picture.`
+        : `${reply.name}: Save acknowledged. Verify the result on Facebook.`), !!reply.warning || unconfirmed);
+    }
     else status(`${reply.name}: Ready for review in the Facebook tab. Save manually if correct.`);
   } catch (error) {status(error.message, true);}
   finally {

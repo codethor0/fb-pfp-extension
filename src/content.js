@@ -11,6 +11,8 @@
   const PREVIEW_SETTLE_MS = 600;
   const SAVE_SETTLE_MS = 1500;
   const SAVE_WAIT_MS = 30000;
+  const PREVIEW_FETCH_RETRIES = 2;  // a transient CDN fetch failure must not stick for the whole wait
+  const PREVIEW_FETCH_RETRY_MS = 400;
   const BUTTONS = 'button, [role="button"], [role="menuitem"], [role="link"]';
   let working = false;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -326,16 +328,19 @@
     if (!src) return null;
     if (src.startsWith('blob:') || src.startsWith('data:')) return image;
     if (new URL(src, location.href).origin === location.origin) return image;
-    try {
-      const response = await fetch(src, {credentials: 'omit', mode: 'cors'});
-      if (!response.ok) return null;
-      const declared = Number(response.headers.get('content-length'));
-      if (Number.isFinite(declared) && declared > MAX_PREVIEW_BYTES) return null;
-      const blob = await response.blob();
-      if (blob.size > MAX_PREVIEW_BYTES) return null;
-      return await createImageBitmap(blob);
-    } catch {
-      return null;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await fetch(src, {credentials: 'omit', mode: 'cors'});
+        if (!response.ok) return null;
+        const declared = Number(response.headers.get('content-length'));
+        if (Number.isFinite(declared) && declared > MAX_PREVIEW_BYTES) return null;
+        const blob = await response.blob();
+        if (blob.size > MAX_PREVIEW_BYTES) return null;
+        return await createImageBitmap(blob);
+      } catch (error) {
+        if (attempt >= PREVIEW_FETCH_RETRIES) return null;
+        await sleep(PREVIEW_FETCH_RETRY_MS);
+      }
     }
   }
 
@@ -514,7 +519,13 @@
       return {ok: true, saved: false, stage: 'review'};
     }
     const result = await saveIfRequested(before);
-    showNotice('fb-pfp: Save acknowledged by the Facebook dialog. Verify your profile picture.');
+    // Only a settled, closed dialog counts as acknowledgement. A cancel, an
+    // error or a dialog that never settled is reported as unconfirmed.
+    if (result.confirmed === true) {
+      showNotice('fb-pfp: Save acknowledged by the Facebook dialog. Verify your profile picture.');
+    } else {
+      showNotice('fb-pfp: Save was clicked, but Facebook did not confirm it. Check your profile picture.', true);
+    }
     return result;
   }
 

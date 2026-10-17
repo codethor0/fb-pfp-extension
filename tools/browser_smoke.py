@@ -4,6 +4,7 @@ import argparse
 import base64
 import io
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -119,6 +120,43 @@ def rectangular_payload(width, height):
     return base64.b64encode(output.getvalue()).decode('ascii')
 
 
+def rebranded_gecko_launcher(play):
+    """Prepare a rebranded copy of playwright's Firefox for macOS 27.
+
+    On macOS 27, TCC protects ~/Library/Application Support/Firefox, so any
+    command-line-spawned Firefox (playwright's bundled build included) is
+    denied its app-data dir and exits with "Could not find profile folder".
+    See microsoft/playwright#42768. Pointing the same binary at an identical
+    application.ini whose Name/Vendor are distinct makes it resolve a
+    non-protected app-data dir instead. -app must be the first argument,
+    which playwright cannot express through launch options, so a tiny
+    launcher script reorders the arguments before exec'ing the real binary.
+    The copy lives in the user cache keyed by the playwright build number
+    and is never shipped.
+    """
+    source_exe = Path(play.firefox.executable_path).resolve()
+    bundle = source_exe.parents[2]            # .../firefox-NNNN/firefox/Nightly.app
+    build = bundle.parents[1].name            # firefox-NNNN
+    cache = Path.home() / '.cache' / 'fb-pfp' / 'gecko-battery' / build
+    launcher = cache / 'firefox-launcher.sh'
+    if launcher.exists():
+        return launcher
+    staged = cache / bundle.name
+    if not staged.exists():
+        shutil.copytree(bundle, staged)
+    ini_source = bundle / 'Contents' / 'Resources' / 'application.ini'
+    ini_target = staged / 'Contents' / 'Resources' / 'browser' / 'application.ini'
+    ini_target.parent.mkdir(parents=True, exist_ok=True)
+    text = ini_source.read_text()
+    text = text.replace('Vendor=Mozilla', 'Vendor=fbpfp')
+    text = text.replace('Name=Firefox', 'Name=fbpfp-battery')
+    ini_target.write_text(text)
+    real = staged / 'Contents' / 'MacOS' / 'firefox'
+    launcher.write_text(f'#!/bin/sh\nexec "{real}" -app "{ini_target}" "$@"\n')
+    launcher.chmod(0o755)
+    return launcher
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--browser', choices=('chromium', 'firefox'), default='chromium',
@@ -131,14 +169,19 @@ def main():
         if args.browser == 'firefox':
             try:
                 browser = play.firefox.launch(headless=True)
-            except Exception as exc:
+            except Exception as first_exc:
                 # Environment limitation, not a code failure: macOS 27 TCC
-                # blocks sandboxed processes from Firefox's app-data dir, so
-                # no Firefox can launch under this harness there. See
-                # microsoft/playwright#42768. The Chromium pass stays the
-                # hard gate; this pass is best effort.
-                print(f'SKIP: firefox engine unavailable here: {str(exc).splitlines()[0][:160]}')
-                return
+                # denies command-line-spawned Firefox processes access to the
+                # TCC-protected app-data dir. See microsoft/playwright#42768.
+                # Relaunch once under a rebranded app-data dir; if that also
+                # fails, skip. The Chromium pass stays the hard gate.
+                try:
+                    launcher = rebranded_gecko_launcher(play)
+                    browser = play.firefox.launch(executable_path=str(launcher), headless=True)
+                    print(f'PASS: firefox relaunched under rebranded app-data dir ({launcher.parent.name})')
+                except Exception as second_exc:
+                    print(f'SKIP: firefox engine unavailable here: {str(second_exc).splitlines()[0][:160]}')
+                    return
         else:
             browser = play.chromium.launch(**launch)
         print(f'PASS: harness launched on {args.browser} {browser.version}')

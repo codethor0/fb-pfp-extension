@@ -29,7 +29,8 @@ Where the project is going and why. Items ship when they are verified, not befor
   standard Facebook meets: no blind clicks, verification before Save,
   manual-confirm default on restrictive platforms. Enabling an adapter also
   requires deliberately broadening host permissions; the release audit
-  tripwires both.
+  tripwires both. The LinkedIn probe evidence and adapter specification
+  live in `docs/linkedin-adapter-spec.md`.
 
 ## Never
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- `tools/browser_smoke.py --browser firefox` now runs the full DOM battery on macOS 27 instead of reporting SKIP. Playwright's bundled Firefox resolves the TCC-protected `~/Library/Application Support/Firefox` app-data dir and was denied access (microsoft/playwright#42768). When a plain launch fails, the harness stages a one-time copy of the playwright build in the user cache, points it at an identical `application.ini` with a distinct Name/Vendor so it resolves a non-protected app-data dir, and relaunches it through a small argument-reordering launcher (`-app` must be the first argument, which playwright cannot express itself). The copy is keyed by the playwright build number and is never shipped. Verified: 62 PASS, 0 failures on Firefox 155.0; the Chromium pass is unchanged and stays the hard gate.
+
 ## [0.4.2] - 2026-10-16
 
 - A Save click that Facebook never confirms is no longer reported as acknowledged. The on-page notice and the popup status both said "Save acknowledged" for an unconfirmed Save (cancel, error or a dialog that never settled), even though the rotation state and the stored result were already correct. Both now say the Save was clicked but not confirmed. Regressions cover the popup and the page notice for every unconfirmed case.

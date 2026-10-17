@@ -30,7 +30,8 @@ Where the project is going and why. Items ship when they are verified, not befor
   manual-confirm default on restrictive platforms. Enabling an adapter also
   requires deliberately broadening host permissions; the release audit
   tripwires both. The LinkedIn probe evidence and adapter specification
-  live in `docs/linkedin-adapter-spec.md`.
+  live in `docs/linkedin-adapter-spec.md`; the X probe evidence and adapter
+  specification live in `docs/x-adapter-spec.md`.
 
 ## Never
 

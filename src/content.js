@@ -265,20 +265,35 @@
       if (!ctx) return null;
       if (crop) ctx.drawImage(picture, crop.x, crop.y, crop.size, crop.size, 0, 0, 32, 32);
       else ctx.drawImage(picture, 0, 0, 32, 32);
-      const data = ctx.getImageData(0, 0, 32, 32).data;
-      const samples = [];
-      for (const x of [0.25, 0.5, 0.75]) for (const y of [0.25, 0.5, 0.75]) {
-        const offset = (Math.floor(31 * y) * 32 + Math.floor(31 * x)) * 4;
-        samples.push(...data.slice(offset, offset + 4));
-      }
-      return samples;
+      // Every pixel of the comparison participates. Nine sample positions were
+      // audit-proven bypassable: two images crafted to agree only at those
+      // positions passed verification while most pixels differed materially.
+      return [...ctx.getImageData(0, 0, 32, 32).data];
     } catch { return null; }
   }
 
+  // Per-pixel tolerance against the 32x32 reference. A small fixed budget of
+  // outlier pixels absorbs CDN recompression spikes on single pixels; a
+  // materially different image always exhausts it and fails closed.
+  const TOLERANCE = 24;
+  const MAX_OUTLIER_PIXELS = 10;  // ~1% of the 32x32 comparison
+
   function matchesPicture(samples, expectedVariants) {
-    // Allow small decoding, resize and JPEG differences. Unknown/cross-origin pixels fail closed.
-    return samples !== null && expectedVariants.some(expected => samples.length === expected.length &&
-      samples.every((value, index) => Math.abs(value - expected[index]) <= 24));
+    if (samples === null) return false;
+    return expectedVariants.some(expected => {
+      if (samples.length !== expected.length) return false;
+      let outliers = 0;
+      for (let pixel = 0; pixel < samples.length; pixel += 4) {
+        for (let channel = 0; channel < 3; channel++) {
+          if (Math.abs(samples[pixel + channel] - expected[pixel + channel]) > TOLERANCE) {
+            outliers++;
+            break;
+          }
+        }
+        if (outliers > MAX_OUTLIER_PIXELS) return false;
+      }
+      return true;
+    });
   }
 
   async function expectedPicture(bytes) {

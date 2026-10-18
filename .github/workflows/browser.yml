@@ -1,0 +1,46 @@
+# Browser lifecycle gate: runs the offline DOM battery on real Chromium and
+# Firefox engines, reported separately. The unit-test job (ci.yml) executes
+# no browser at all, so this gate is the only CI coverage of the content
+# script's actual DOM behavior. A SKIP (engine unavailable) fails the job:
+# a battery that did not run proves nothing.
+name: Browser battery
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install battery dependencies
+        run: |
+          pip install playwright pillow
+          playwright install --with-deps ${{ matrix.engine }}
+
+      - name: Run DOM battery on ${{ matrix.engine }}
+        run: |
+          set -o pipefail
+          python3 tools/browser_smoke.py --browser ${{ matrix.engine }} | tee battery-${{ matrix.engine }}.log
+          echo "pass=$(grep -c '^PASS' battery-${{ matrix.engine }}.log) fail=$(grep -c '^FAIL' battery-${{ matrix.engine }}.log) skip=$(grep -c '^SKIP' battery-${{ matrix.engine }}.log)"
+          test "$(grep -c '^FAIL' battery-${{ matrix.engine }}.log)" = "0"
+          ! grep -q '^SKIP' battery-${{ matrix.engine }}.log
+
+      - name: Upload battery log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: battery-${{ matrix.engine }}
+          path: battery-${{ matrix.engine }}.log
+          retention-days: 30

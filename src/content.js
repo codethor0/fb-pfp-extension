@@ -338,6 +338,36 @@
   // previews are size-capped: a hostile or broken page must not be able to
   // push an unbounded image into createImageBitmap.
   const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
+
+  async function boundedBody(response, limit) {
+    // Stream with a hard cap: response.blob() would buffer the full body
+    // before any size check when the server omits or misreports
+    // Content-Length, so a hostile or broken page could push an unbounded
+    // image into memory regardless of MAX_PREVIEW_BYTES.
+    if (!response.body || typeof response.body.getReader !== 'function') {
+      const blob = await response.blob();
+      return blob.size <= limit ? blob : null;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > limit) {
+          await reader.cancel().catch(() => {});
+          return null;
+        }
+        chunks.push(value);
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* already released */ }
+    }
+    return new Blob(chunks);
+  }
+
   async function untaintedDrawable(image) {
     const src = previewSource(image);
     if (!src) return null;
@@ -349,8 +379,8 @@
         if (!response.ok) return null;
         const declared = Number(response.headers.get('content-length'));
         if (Number.isFinite(declared) && declared > MAX_PREVIEW_BYTES) return null;
-        const blob = await response.blob();
-        if (blob.size > MAX_PREVIEW_BYTES) return null;
+        const blob = await boundedBody(response, MAX_PREVIEW_BYTES);
+        if (!blob || blob.size === 0 || blob.size > MAX_PREVIEW_BYTES) return null;
         return await createImageBitmap(blob);
       } catch (error) {
         if (attempt >= PREVIEW_FETCH_RETRIES) return null;

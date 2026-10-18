@@ -186,14 +186,31 @@ def main():
             browser = play.chromium.launch(**launch)
         print(f'PASS: harness launched on {args.browser} {browser.version}')
         try:
-            source = CONTENT.read_text().replace('    validatePage();', '    // Synthetic page: no live Facebook origin.')
-            for before, after in [('const WAIT_MS = 12000;', 'const WAIT_MS = 900;'),
-                                  ('const DIALOG_WAIT_MS = 25000;', 'const DIALOG_WAIT_MS = 3000;'),
-                                  ('const UPLOAD_SETTLE_MS = 2500;', 'const UPLOAD_SETTLE_MS = 150;'),
-                                  ('const PREVIEW_SETTLE_MS = 600;', 'const PREVIEW_SETTLE_MS = 200;'),
-                                  ('const SAVE_SETTLE_MS = 1500;', 'const SAVE_SETTLE_MS = 400;'),
-                                  ('const SAVE_WAIT_MS = 30000;', 'const SAVE_WAIT_MS = 1400;')]:
-                source = source.replace(before, after)
+            timing_pairs = [('const WAIT_MS = 12000;', 'const WAIT_MS = 900;'),
+                            ('const DIALOG_WAIT_MS = 25000;', 'const DIALOG_WAIT_MS = 3000;'),
+                            ('const UPLOAD_SETTLE_MS = 2500;', 'const UPLOAD_SETTLE_MS = 150;'),
+                            ('const PREVIEW_SETTLE_MS = 600;', 'const PREVIEW_SETTLE_MS = 200;'),
+                            ('const SAVE_SETTLE_MS = 1500;', 'const SAVE_SETTLE_MS = 400;'),
+                            ('const SAVE_WAIT_MS = 30000;', 'const SAVE_WAIT_MS = 1400;')]
+
+            def apply_test_patches(text, strip_validate=True):
+                if strip_validate:
+                    # Synthetic page: no live Facebook origin.
+                    text = text.replace('    validatePage();', '    /* validatePage stripped by the battery */')
+                for before, after in timing_pairs:
+                    text = text.replace(before, after)
+                return text
+
+            source = apply_test_patches(CONTENT.read_text())
+
+            # Guard tests run the real validatePage against stubbed location
+            # pieces, so the fail-closed site guards have offline coverage:
+            # disabled adapters, unknown hosts, http, and the login wall.
+            guard_source = apply_test_patches(CONTENT.read_text(), strip_validate=False)
+            guard_source = (guard_source
+                            .replace('location.protocol', '(window.__fakeProto||location.protocol)')
+                            .replace('location.hostname', '(window.__fakeHost||location.hostname)')
+                            .replace('location.pathname', '(window.__fakePath||location.pathname)'))
 
             def run(html, publish=False, user_input=False, data=None, routes=None, flaky_routes=None, fail_routes=None):
                 page = browser.new_page()
@@ -251,6 +268,20 @@ def main():
                 assert page.locator('#composer').evaluate('e=>e.files.length') == 0
                 assert page.evaluate('window.__premature') == 0, 'Save was clicked before upload readiness'
                 return reply, page
+
+            def run_guard(host, proto='https:', path='/'):
+                page = browser.new_page()
+                page.set_content(fixture())
+                page.evaluate('''({proto, host, path}) => {
+                  window.chrome = {runtime: {id: "test-ext", onMessage: {addListener(fn) {window.__handler = fn;}}}};
+                  window.__fakeProto = proto; window.__fakeHost = host; window.__fakePath = path;
+                }''', {'proto': proto, 'host': host, 'path': path})
+                page.add_script_tag(content=guard_source)
+                reply = page.evaluate('''({data}) => new Promise(resolve => window.__handler(
+                    {type: 'PREPARE_PHOTO', data, mime: 'image/jpeg', fileName: 'profile-photo.jpg', publish: false},
+                    {id: 'test-ext'}, resolve))''', {'data': image_payload()})
+                page.close()
+                return reply
 
             for publish in (False, True):
                 reply, page = run(fixture(), publish)
@@ -345,6 +376,31 @@ def main():
             assert page.evaluate('window.__changed') == ['target']
             page.close()
             print('PASS: a named profile-picture dialog wins over an unnamed lookalike')
+
+            # Fail-closed site guards, exercised through the real validatePage
+            # with stubbed location pieces. These lock the contracts: enabling
+            # an adapter or broadening hosts is a deliberate change that must
+            # update this block.
+            for host, needle, label in [
+                ('www.linkedin.com', 'not enabled in this build', 'linkedin contract stays disabled'),
+                ('x.com', 'not enabled in this build', 'x contract stays disabled'),
+                ('example.com', 'does not support example.com', 'unknown host is named'),
+            ]:
+                reply = run_guard(host)
+                assert reply.get('ok') is False and needle in reply.get('error', ''), (host, reply)
+                print('PASS: site guard:', label)
+            reply = run_guard('www.facebook.com', proto='http:')
+            assert reply.get('ok') is False and 'runs only on https' in reply.get('error', ''), reply
+            print('PASS: site guard refuses http')
+            reply = run_guard('www.facebook.com', path='/login.php')
+            assert reply.get('ok') is False and 'Log in to Facebook' in reply.get('error', ''), reply
+            print('PASS: site guard names the Facebook login wall')
+            reply = run_guard('www.facebook.com', path='/codethor0')
+            assert reply.get('ok') is True and reply.get('saved') is False, reply
+            print('PASS: site guard passes a profile page through to the flow')
+            reply = run_guard('www.facebook.com', path='/home')
+            assert reply.get('ok') is False and 'No photo selected' in reply.get('error', ''), reply
+            print('PASS: site guard refuses the Facebook home timeline')
 
             reply, page = run(fixture())
             assert reply.get('ok') is True, reply

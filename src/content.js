@@ -265,20 +265,35 @@
       if (!ctx) return null;
       if (crop) ctx.drawImage(picture, crop.x, crop.y, crop.size, crop.size, 0, 0, 32, 32);
       else ctx.drawImage(picture, 0, 0, 32, 32);
-      const data = ctx.getImageData(0, 0, 32, 32).data;
-      const samples = [];
-      for (const x of [0.25, 0.5, 0.75]) for (const y of [0.25, 0.5, 0.75]) {
-        const offset = (Math.floor(31 * y) * 32 + Math.floor(31 * x)) * 4;
-        samples.push(...data.slice(offset, offset + 4));
-      }
-      return samples;
+      // Every pixel of the comparison participates. Nine sample positions were
+      // audit-proven bypassable: two images crafted to agree only at those
+      // positions passed verification while most pixels differed materially.
+      return [...ctx.getImageData(0, 0, 32, 32).data];
     } catch { return null; }
   }
 
+  // Per-pixel tolerance against the 32x32 reference. A small fixed budget of
+  // outlier pixels absorbs CDN recompression spikes on single pixels; a
+  // materially different image always exhausts it and fails closed.
+  const TOLERANCE = 24;
+  const MAX_OUTLIER_PIXELS = 10;  // ~1% of the 32x32 comparison
+
   function matchesPicture(samples, expectedVariants) {
-    // Allow small decoding, resize and JPEG differences. Unknown/cross-origin pixels fail closed.
-    return samples !== null && expectedVariants.some(expected => samples.length === expected.length &&
-      samples.every((value, index) => Math.abs(value - expected[index]) <= 24));
+    if (samples === null) return false;
+    return expectedVariants.some(expected => {
+      if (samples.length !== expected.length) return false;
+      let outliers = 0;
+      for (let pixel = 0; pixel < samples.length; pixel += 4) {
+        for (let channel = 0; channel < 3; channel++) {
+          if (Math.abs(samples[pixel + channel] - expected[pixel + channel]) > TOLERANCE) {
+            outliers++;
+            break;
+          }
+        }
+        if (outliers > MAX_OUTLIER_PIXELS) return false;
+      }
+      return true;
+    });
   }
 
   async function expectedPicture(bytes) {
@@ -323,6 +338,36 @@
   // previews are size-capped: a hostile or broken page must not be able to
   // push an unbounded image into createImageBitmap.
   const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
+
+  async function boundedBody(response, limit) {
+    // Stream with a hard cap: response.blob() would buffer the full body
+    // before any size check when the server omits or misreports
+    // Content-Length, so a hostile or broken page could push an unbounded
+    // image into memory regardless of MAX_PREVIEW_BYTES.
+    if (!response.body || typeof response.body.getReader !== 'function') {
+      const blob = await response.blob();
+      return blob.size <= limit ? blob : null;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > limit) {
+          await reader.cancel().catch(() => {});
+          return null;
+        }
+        chunks.push(value);
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* already released */ }
+    }
+    return new Blob(chunks);
+  }
+
   async function untaintedDrawable(image) {
     const src = previewSource(image);
     if (!src) return null;
@@ -334,8 +379,8 @@
         if (!response.ok) return null;
         const declared = Number(response.headers.get('content-length'));
         if (Number.isFinite(declared) && declared > MAX_PREVIEW_BYTES) return null;
-        const blob = await response.blob();
-        if (blob.size > MAX_PREVIEW_BYTES) return null;
+        const blob = await boundedBody(response, MAX_PREVIEW_BYTES);
+        if (!blob || blob.size === 0 || blob.size > MAX_PREVIEW_BYTES) return null;
         return await createImageBitmap(blob);
       } catch (error) {
         if (attempt >= PREVIEW_FETCH_RETRIES) return null;

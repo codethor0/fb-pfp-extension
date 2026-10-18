@@ -36,8 +36,8 @@ What fb-pfp does:
 
 - Stores up to 20 of your photos locally, converting them to privacy-safe
   JPEGs and stripping embedded camera metadata (EXIF/GPS).
-- Verifies, pixel by pixel, that the photo shown in Facebook's dialog is
-  the photo you selected before any Save is attempted.
+- Compares the photo shown in Facebook's dialog against the photo you
+  selected before any Save is attempted and refuses on any mismatch.
 - Optionally rotates through your library without repeating photos.
 - Can prepare a photo for your daily review at a time you choose; a
   scheduled run never clicks Save.

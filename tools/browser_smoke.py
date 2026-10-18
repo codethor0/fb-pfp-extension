@@ -81,6 +81,7 @@ CHANGES = {
     'unreadable-preview': "preview(file);CanvasRenderingContext2D.prototype.getImageData=function(){throw new DOMException('Unreadable pixels','SecurityError');};",
     'resized-reencoded': "const img=new Image();img.onload=()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=120;canvas.getContext('2d').drawImage(img,0,0,120,120);canvas.toBlob(blob=>preview(blob),'image/jpeg',0.7);};img.src=URL.createObjectURL(file);",
     'cdn-preview': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/staged.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
+    'cdn-ninepoint': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/ninepoint.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
     'cdn-wrong': "const img=document.createElement('img');img.src='http://cdn.fb-pfp.fixture/wrong.jpg';img.onload=()=>window.__accepted=true;document.querySelector('[role=\"dialog\"]').appendChild(img);",
     'centered-crop': "const canvas=document.createElement('canvas');canvas.width=canvas.height=180;document.querySelector('[role=\"dialog\"]').appendChild(canvas);const img=new Image();img.onload=()=>{const size=Math.min(img.naturalWidth,img.naturalHeight);canvas.getContext('2d').drawImage(img,(img.naturalWidth-size)/2,(img.naturalHeight-size)/2,size,size,0,0,180,180);window.__accepted=true;};img.src=URL.createObjectURL(file);",
     'hidden-after-verify': 'preview(file);setTimeout(()=>{document.querySelector("#preview").style.display="none";},50);',
@@ -107,6 +108,24 @@ def fixture(layout='normal', change='accepted', save='close', avatar=AVATAR_IMG)
 def image_payload(color=(20, 155, 220)):
     output = io.BytesIO()
     Image.new('RGB', (180, 180), color).save(output, 'JPEG')
+    return base64.b64encode(output.getvalue()).decode('ascii')
+
+
+def ninepoint_collision_payload(selected=(20, 155, 220), wrong=(200, 40, 90)):
+    """A wrong image that matches the selected photo at the content script's
+    legacy nine sample positions (uniform 7x7 blocks keep those pixels stable
+    through JPEG recompression) while every other pixel differs materially.
+    This exact image passed the old nine-sample comparison in an offline
+    reproduction; the full-pixel comparison must reject it."""
+    image = Image.new('RGB', (32, 32), wrong)
+    for fy in (0.25, 0.5, 0.75):
+        for fx in (0.25, 0.5, 0.75):
+            cx, cy = int(31 * fx), int(31 * fy)
+            for dy in range(-3, 4):
+                for dx in range(-3, 4):
+                    image.putpixel(((cx + dx) % 32, (cy + dy) % 32), selected)
+    output = io.BytesIO()
+    image.save(output, 'JPEG', quality=90)
     return base64.b64encode(output.getvalue()).decode('ascii')
 
 
@@ -216,13 +235,16 @@ def main():
                 page = browser.new_page()
                 page.on('filechooser', lambda chooser: None)  # Intercept native pickers in negative fixtures.
                 if routes or flaky_routes or fail_routes:
-                    def make_handler(payload):
+                    def make_handler(payload, extra_headers=None):
                         def handler(route):
+                            headers = {'access-control-allow-origin': '*'}
+                            headers.update(extra_headers or {})
                             route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
-                                          headers={'access-control-allow-origin': '*'})
+                                          headers=headers)
                         return handler
-                    for pattern, body in (routes or []):
-                        page.route(pattern, make_handler(body))
+                    for entry in (routes or []):
+                        pattern, body = entry[0], entry[1]
+                        page.route(pattern, make_handler(body, entry[2] if len(entry) > 2 else None))
                     for pattern, body in (flaky_routes or []):
                         def make_flaky(payload):
                             state = {'requests': 0}
@@ -334,6 +356,13 @@ def main():
             page.close()
             print('PASS: a cross-origin CDN preview with different pixels never reaches Save')
 
+            reply, page = run(fixture(change='cdn-ninepoint'), True,
+                              routes=[('http://cdn.fb-pfp.fixture/ninepoint.jpg', ninepoint_collision_payload())])
+            assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
+            assert 'Could not verify the selected picture' in reply.get('error', ''), reply
+            page.close()
+            print('PASS: an image colliding only at the legacy nine sample positions never reaches Save')
+
             reply, page = run(fixture(change='cdn-preview'), True,
                               flaky_routes=[('http://cdn.fb-pfp.fixture/staged.jpg', image_payload())])
             assert reply.get('ok') is True and reply.get('saved') is True, reply
@@ -346,6 +375,13 @@ def main():
             assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
             page.close()
             print('PASS: a CDN preview that keeps failing never reaches Save')
+
+            reply, page = run(fixture(change='cdn-preview'), True,
+                              routes=[('http://cdn.fb-pfp.fixture/staged.jpg', image_payload(),
+                                       {'content-length': str(64 * 1024 * 1024)})])
+            assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
+            page.close()
+            print('PASS: a CDN preview misreporting an oversized Content-Length never reaches Save')
 
             for layout in ('missing-input', 'composer-click', 'ambiguous-inputs', 'ambiguous-dialogs',
                            'late-unrelated-input', 'multiple-requested-inputs', 'accept-less-input'):

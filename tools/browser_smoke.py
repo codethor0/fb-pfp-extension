@@ -235,13 +235,16 @@ def main():
                 page = browser.new_page()
                 page.on('filechooser', lambda chooser: None)  # Intercept native pickers in negative fixtures.
                 if routes or flaky_routes or fail_routes:
-                    def make_handler(payload):
+                    def make_handler(payload, extra_headers=None):
                         def handler(route):
+                            headers = {'access-control-allow-origin': '*'}
+                            headers.update(extra_headers or {})
                             route.fulfill(body=base64.b64decode(payload), content_type='image/jpeg',
-                                          headers={'access-control-allow-origin': '*'})
+                                          headers=headers)
                         return handler
-                    for pattern, body in (routes or []):
-                        page.route(pattern, make_handler(body))
+                    for entry in (routes or []):
+                        pattern, body = entry[0], entry[1]
+                        page.route(pattern, make_handler(body, entry[2] if len(entry) > 2 else None))
                     for pattern, body in (flaky_routes or []):
                         def make_flaky(payload):
                             state = {'requests': 0}
@@ -372,6 +375,13 @@ def main():
             assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
             page.close()
             print('PASS: a CDN preview that keeps failing never reaches Save')
+
+            reply, page = run(fixture(change='cdn-preview'), True,
+                              routes=[('http://cdn.fb-pfp.fixture/staged.jpg', image_payload(),
+                                       {'content-length': str(64 * 1024 * 1024)})])
+            assert reply.get('ok') is False and page.evaluate('window.__saved') == 0, reply
+            page.close()
+            print('PASS: a CDN preview misreporting an oversized Content-Length never reaches Save')
 
             for layout in ('missing-input', 'composer-click', 'ambiguous-inputs', 'ambiguous-dialogs',
                            'late-unrelated-input', 'multiple-requested-inputs', 'accept-less-input'):

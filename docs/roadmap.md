@@ -52,14 +52,17 @@ Order of attack, by demand and by DOM stability:
   (launch headless via `open -na "Microsoft Edge" --args --headless=new
   --remote-debugging-port=9223 about:blank`, then run the battery with
   `CDP_URL=http://localhost:9223`). The remaining Edge work is a Partner
-  Center submission and an installed-extension acceptance pass in real Edge.
-- Safari: assessed in docs/safari-feasibility.md (2026-10-29). Feasible on
-  macOS with the Firefox-style event-page background, but distribution needs
-  the Apple Developer Program (99 USD per year), an Xcode wrapper, and an
-  installed-extension acceptance pass. iOS additionally lacks the `alarms`
-  API, so the daily-review schedule cannot work there. Xcode is not
-  installed on the build Mac yet; that and the membership are the two
-  owner-level decisions blocking this lane.
+  Center submission and an installed-extension acceptance pass in real Edge;
+  that acceptance run is documented in tools/edge_acceptance.py (PR #17).
+- Safari: corrected against Apple's current documentation in
+  docs/safari-feasibility.md (2026-10-29). Xcode is no longer needed for
+  distribution packaging (the App Store Connect Safari Web Extension
+  Packager, WWDC26, packages a ZIP without a Mac), but a paid membership
+  is still required for distribution, and Xcode (free) is still required
+  for local runtime testing. The iOS Alarms API conflict (MDN: unsupported;
+  external review: Apple documents it) stays open until a real-device test;
+  the build will feature-detect alarms and degrade the schedule UI rather
+  than assume. Blocked only on the free Xcode install for local testing.
 
 ## Funding
 

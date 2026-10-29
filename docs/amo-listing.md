@@ -113,3 +113,11 @@ Version rule: submit a build whose version tag matches the CWS train. The
 staged 0.4.3 candidate carries post-0.4.3 code, so submit it only after the
 CWS 0.4.3 verdict lands and the tree is tagged 0.4.4; then rebuild from that
 tag and update the version strings above before uploading.
+
+Dependency assessment (2026-10-29): the CWS review is not a technical
+dependency for the Mozilla submission. AMO reviews independently and has no
+visibility into Chrome Web Store state; the alignment rule above is our own
+release-hygiene convention so one version number means the same code on
+every store, not a requirement either store imposes. If the CWS verdict
+drags, Mozilla submission can proceed independently on its own tag without
+waiting.

@@ -1,16 +1,21 @@
 # Safari feasibility assessment
 
-Date: 2026-10-29. Scope: what it would take to ship fb-pfp on Safari for
-macOS and iOS, based on evidence collected this date. Nothing here has been
-run against Safari; every claim carries its source.
+Date: 2026-10-29 (corrected same day against Apple's current documentation).
+Scope: what it takes to ship fb-pfp on Safari for macOS and iOS. Every
+claim carries its source; where sources conflict, the conflict is stated
+instead of resolved by assumption.
 
 ## What works in our favor
 
-- The Firefox build already emits the background shape Safari wants:
-  `background.scripts` with `type: "module"` as an event page. Safari does
-  not run MV3 `background.service_worker`; Apple's own Xcode template uses
-  the `scripts` form. The Safari manifest is therefore a small delta on
-  `tools/build_firefox.py`, not a new architecture.
+- Safari Web Extensions are standard WebExtension packages: the same
+  manifest, content script, popup and background files as Chrome and
+  Firefox, wrapped in a containing app for distribution (Apple, "Safari Web
+  Extensions", developer.apple.com, checked 2026-10-29).
+- Safari supports Manifest V3 (Apple, WWDC26 session 216 "Create web
+  extensions for Safari", 2026-10-27). Apple's own Xcode 26 template
+  manifests use the `background.scripts` form with `type: "module"`, the
+  same shape our Firefox build already emits, so the Safari manifest is a
+  small delta on `tools/build_firefox.py`, not a new architecture.
 - API surface is minimal: `alarms`, `runtime`, `storage`, `tabs`. All four
   exist in Safari Web Extensions on macOS (alarms since Safari 14, per MDN
   browser-compat data checked 2026-10-29).
@@ -19,36 +24,65 @@ run against Safari; every claim carries its source.
 - The content script uses standard DOM APIs only (canvas, createImageBitmap,
   DataTransfer, file inputs); nothing there is Chromium-specific.
 
-## What blocks or degrades
+## Distribution: what is and is not required
 
-- **iOS has no `alarms` API** (MDN compat data: `safari_ios: None` for every
-  alarms member). The optional daily-review schedule cannot work on iPhone
-  or iPad. Manual Prepare / Change-now flows could still work. A Safari iOS
-  build must degrade the schedule UI honestly or hide it.
-- **Distribution requires the Apple Developer Program** (99 USD per year) and
-  an Xcode app wrapper built from `safari-web-extension-converter`. All
-  Safari extensions ship through the App Store; the old Safari Extensions
-  Gallery closed in 2022.
-- **Xcode is not installed on the build Mac** (only Command Line Tools), so
-  the conversion step cannot run locally yet. One 2026-10-29 external review
-  claimed App Store Connect can package Safari Web Extensions without Xcode;
-  industry documentation as of May to September 2026 still describes the
-  Xcode wrapper as required, so treat the no-Xcode claim as unverified and
-  plan around installing Xcode.
-- Each new browser multiplies the QA surface: the Safari build needs its own
-  installed-extension acceptance pass in real Safari (popup lifecycle, event
-  page wake on alarm, IndexedDB storage) before any submission. The synthetic
-  DOM battery proves content-script logic only.
+Correcting the earlier version of this document:
+
+- **Paid Apple Developer Program membership (99 USD per year): required
+  only for distribution** (App Store or TestFlight), not for local testing.
+  Apple's Safari extensions page confirms the App Store Connect packager
+  path: upload a ZIP of the extension and Apple converts and packages it
+  for testing and App Store distribution (developer.apple.com/safari/
+  extensions, checked 2026-10-29).
+- **Xcode is no longer required for distribution packaging.** Since WWDC26
+  (June 2026), the Safari Web Extension Packager in App Store Connect
+  packages the extension without a Mac or Xcode; packaging runs on Xcode
+  Cloud compute included in the membership (Apple, WWDC26 sessions 204 and
+  216; developer.apple.com "Packaging a web extension for Safari", checked
+  2026-10-29). The command-line `xcrun safari-web-extension-packager`
+  (formerly `safari-web-extension-converter`) still exists for projects
+  that need native code, a custom containing app, or local builds.
+- **Xcode is still required for local macOS runtime testing.** Safari
+  loads web extensions only from a containing app, and generating that app
+  locally uses the packager CLI that ships with Xcode. Xcode itself is a
+  free download; the paid membership is not needed to build, run unsigned,
+  and test locally. Unsigned local testing: enable Develop > Allow
+  Unsigned Extensions in Safari (resets when Safari quits), then enable
+  the extension in Safari Settings > Extensions (Apple-documented flow,
+  corroborated by multiple 2026 third-party guides).
+- This Mac has Safari 27.2 on macOS 27.2 but only Command Line Tools; the
+  Xcode install (free, owner action, roughly a 30 to 60 minute download)
+  is the single blocker for local Safari runtime verification.
+
+## Open items that must be tested, not assumed
+
+- **Alarms API on iOS.** MDN browser-compat data lists no `safari_ios`
+  support for any `alarms` member (checked 2026-10-29), while the 2026-10-29
+  external review states Apple documents the Alarms API for iOS extensions.
+  These conflict, and MDN's Safari iOS coverage for WebExtensions is known
+  to lag. The daily-review schedule therefore cannot be claimed either
+  supported or unsupported on iPhone and iPad until a real-device test.
+  The safe build posture: feature-detect `alarms` at runtime and degrade
+  the schedule UI where it is absent, so the manual Prepare and Change-now
+  flows work everywhere regardless.
+- **Scheduling reliability under iOS background execution**, even where the
+  API exists, needs a device test; the OS decides when background work runs.
+- **Manifest conversion warnings.** The packager prints unsupported
+  manifest keys but never reads the JavaScript; expected flags for us are
+  `minimum_chrome_version` and possibly the CSP object form. Record them
+  on first conversion and audit by hand.
 
 ## Recommended sequencing
 
-1. Decide the Apple Developer membership (cost decision, owner-level).
-2. Install Xcode, run `xcrun safari-web-extension-converter` on a release
-   tag, and record every API warning it emits.
-3. Add `tools/build_safari.py` emitting the Safari manifest delta (reuse the
-   Firefox event-page background; verify whether Safari accepts
-   `data_collection_permissions`-style keys or needs them stripped).
-4. Degrade the daily-review UI on iOS targets where `alarms` is absent;
-   feature-detect at runtime, never assume.
-5. macOS acceptance pass in real Safari, then TestFlight for iOS, before any
-   App Store submission.
+1. Install Xcode (free; owner decision). Run
+   `xcrun safari-web-extension-packager --copy-resources` on a release tag
+   and record every warning it emits.
+2. Add `tools/build_safari.py` emitting the Safari manifest delta on the
+   Firefox event-page background; strip `minimum_chrome_version`; verify
+   what the packager says about `data_collection_permissions`-style keys.
+3. Runtime-test in Safari on this Mac with Allow Unsigned Extensions:
+   popup lifecycle, event page wake on alarm, IndexedDB storage, and the
+   review flow against a local fixture.
+4. Feature-detect `alarms` and degrade the schedule UI on iOS.
+5. Only then decide on the 99 USD membership for App Store Connect
+   packaging, TestFlight on a real iPhone, and App Store submission.

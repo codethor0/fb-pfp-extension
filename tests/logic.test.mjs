@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_SETTINGS, sanitizeSettings, isValidTime,
   selectPhoto, recordSaved, nextScheduledTime, isAllowedFacebookPage, safeDisplayError,
-  shouldCloseScheduledTab
+  shouldCloseScheduledTab,
+  SITE_ROUTES, resolveSiteRoute, isAllowedSitePage
 } from '../src/logic.mjs';
 import { imageFormat, safePhotoName } from '../src/images.mjs';
 
@@ -159,4 +160,35 @@ test('review tab id sanitizes to integer or null', () => {
   for (const bad of [-1, 1.5, '7', '7;eval', {}, [7]]) {
     assert.equal(sanitizeSettings({reviewTabId: bad}).reviewTabId, null);
   }
+});
+
+test('worker site routes resolve enabled sites only', () => {
+  assert.equal(resolveSiteRoute('facebook'), SITE_ROUTES.facebook);
+  assert.equal(resolveSiteRoute('facebook').profileUrl, 'https://www.facebook.com/me');
+  // Disabled adapters and unknown ids never resolve, whatever the storage says.
+  for (const bad of ['linkedin', 'x', '', 'FACEBOOK', 'facebook;eval', {}, null, undefined]) {
+    assert.equal(resolveSiteRoute(bad), null);
+  }
+});
+
+test('stored siteId fails closed to the default site', () => {
+  assert.equal(sanitizeSettings().siteId, 'facebook');
+  assert.equal(sanitizeSettings({siteId: 'facebook'}).siteId, 'facebook');
+  for (const bad of ['linkedin', 'x', 'evil', {toString: () => 'facebook'}, 42]) {
+    assert.equal(sanitizeSettings({siteId: bad}).siteId, 'facebook');
+  }
+});
+
+test('site page allowance is exact HTTPS on a route host', () => {
+  const route = SITE_ROUTES.facebook;
+  assert.equal(isAllowedSitePage(route, 'https://www.facebook.com/me'), true);
+  assert.equal(isAllowedSitePage(route, 'https://www.facebook.com/anything'), true);
+  for (const bad of ['http://www.facebook.com/me', 'https://facebook.com/me',
+                     'https://www.facebook.com.evil.com/me', 'https://evil.com',
+                     'not a url', '', null]) {
+    assert.equal(isAllowedSitePage(route, bad), false);
+    assert.equal(isAllowedFacebookPage(bad), false);
+  }
+  assert.equal(isAllowedSitePage(null, 'https://www.facebook.com/me'), false);
+  assert.equal(isAllowedFacebookPage('https://www.facebook.com/me'), true);
 });

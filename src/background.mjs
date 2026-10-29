@@ -1,13 +1,13 @@
 import { listPhotos, getPhoto } from './library.mjs';
 import {
   DEFAULT_SETTINGS, sanitizeSettings, selectPhoto, recordSaved,
-  nextScheduledTime, isAllowedFacebookPage, safeDisplayError, shouldCloseScheduledTab
+  nextScheduledTime, SITE_ROUTES, resolveSiteRoute, isAllowedSitePage,
+  safeDisplayError, shouldCloseScheduledTab
 } from './logic.mjs';
 import { encodePhoto } from './transfer.mjs';
 
 const STORAGE_KEY = 'settings';
 const ALARM_NAME = 'fb-pfp-daily-review';
-const FACEBOOK_PROFILE = 'https://www.facebook.com/me';
 let runInFlight = null;
 
 async function readSettings() {
@@ -49,7 +49,7 @@ async function ensureAlarm() {
 }
 
 async function restrictStorage() {
-  // The Facebook content script does not need library or settings access.
+  // The content script does not need library or settings access.
   // setAccessLevel is a Chromium-only hardening API; Firefox has no
   // equivalent and throws on unknown methods, so it is feature-detected.
   if (typeof chrome.storage.local.setAccessLevel === 'function') {
@@ -57,12 +57,12 @@ async function restrictStorage() {
   }
 }
 
-async function sendToNewTab(tabId, payload) {
+async function sendToNewTab(tabId, payload, site) {
   for (let attempt = 0; attempt < 80; attempt++) {
     const tab = await chrome.tabs.get(tabId);
-    if (!isAllowedFacebookPage(tab.url || '')) {
+    if (!isAllowedSitePage(site, tab.url || '')) {
       if (tab.status === 'complete' && tab.url && tab.url !== 'about:blank') {
-        throw new Error('Facebook redirected to an unsupported domain');
+        throw new Error(`${site.label} redirected to an unsupported domain`);
       }
     } else if (tab.status === 'complete') {
       try {
@@ -74,18 +74,18 @@ async function sendToNewTab(tabId, payload) {
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  throw new Error('Timed out waiting for Facebook or the content script');
+  throw new Error(`Timed out waiting for ${site.label} or the content script`);
 }
 
 // Reuse the tab a previous scheduled run left open instead of piling up a new
-// Facebook tab every day. The tab qualifies only while it still shows an
-// allowed Facebook page and the user has not focused it for something else.
-async function reuseReviewTab(tabId) {
+// site tab every day. The tab qualifies only while it still shows an allowed
+// page of the same site and the user has not focused it for something else.
+async function reuseReviewTab(tabId, site) {
   if (!Number.isInteger(tabId)) return null;
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab && tab.active !== true && isAllowedFacebookPage(tab.url || '')) {
-      await chrome.tabs.update(tabId, {url: FACEBOOK_PROFILE, active: false});
+    if (tab && tab.active !== true && isAllowedSitePage(site, tab.url || '')) {
+      await chrome.tabs.update(tabId, {url: site.profileUrl, active: false});
       return {id: tabId};
     }
   } catch { /* The tab was closed or the navigation failed; open a fresh one. */ }
@@ -129,6 +129,8 @@ async function runPhoto({source, publish}) {
     }
     const photos = await listPhotos();
     if (!photos.length) throw new Error('Add photos in the extension before running it');
+    const site = resolveSiteRoute(settings.siteId);
+    if (!site) throw new Error('No enabled profile site is configured');
     const selected = selectPhoto(photos, settings);
     if (!selected) throw new Error('No usable photos available');
     const photo = await getPhoto(selected.id);
@@ -139,22 +141,22 @@ async function runPhoto({source, publish}) {
     // focus; user-initiated runs open in the foreground and never reuse.
     let tab;
     if (source === 'alarm') {
-      tab = await reuseReviewTab(settings.reviewTabId) ||
-        await chrome.tabs.create({url: FACEBOOK_PROFILE, active: false});
+      tab = await reuseReviewTab(settings.reviewTabId, site) ||
+        await chrome.tabs.create({url: site.profileUrl, active: false});
       scheduledTabId = tab.id;
     } else {
-      tab = await chrome.tabs.create({url: FACEBOOK_PROFILE, active: true});
+      tab = await chrome.tabs.create({url: site.profileUrl, active: true});
     }
-    if (!Number.isInteger(tab.id)) throw new Error('Could not open your Facebook profile');
+    if (!Number.isInteger(tab.id)) throw new Error(`Could not open your ${site.label} profile`);
     const result = await sendToNewTab(tab.id, {
       type: 'PREPARE_PHOTO',
       publish,
       mime: 'image/jpeg',
       fileName: 'profile-photo.jpg',
       data: base64
-    });
+    }, site);
     staged = result?.ok === true;
-    if (!result?.ok) throw new Error(result?.error || 'Facebook did not accept the image');
+    if (!result?.ok) throw new Error(result?.error || `${site.label} did not accept the image`);
     // A completed review does not use up a picture. A Save click does, even when
     // Facebook never confirmed the result: retrying the same photo immediately
     // would risk a second publication (audit finding F2).
@@ -166,8 +168,8 @@ async function runPhoto({source, publish}) {
         const updated = remaining.some(item => item.id === selected.id)
           ? recordSaved(remaining, current, selected.id) : current;
         const message = confirmed
-          ? `${new Date().toLocaleString()}: Save acknowledged for ${selected.originalName}. Verify your Facebook profile picture.`
-          : `${new Date().toLocaleString()}: Save clicked for ${selected.originalName}, but Facebook did not confirm the result. The photo was counted as used so it will not repeat immediately. Verify your Facebook profile picture.`;
+          ? `${new Date().toLocaleString()}: Save acknowledged for ${selected.originalName}. Verify your ${site.label} profile picture.`
+          : `${new Date().toLocaleString()}: Save clicked for ${selected.originalName}, but ${site.label} did not confirm the result. The photo was counted as used so it will not repeat immediately. Verify your ${site.label} profile picture.`;
         await writeSettings({...updated, lastResult: message});
         return updated;
       }).then(() => true, () => false);
@@ -175,12 +177,12 @@ async function runPhoto({source, publish}) {
         // Never report Save as failed solely because rotation state failed to persist.
         return {ok: true, saved: true, confirmed, name: selected.originalName, tabId: tab.id,
           warning: confirmed
-            ? 'Save was acknowledged, but the rotation state could not be updated. Verify Facebook.'
-            : 'Save was clicked but not confirmed, and the rotation state could not be updated. Verify Facebook.'};
+            ? `Save was acknowledged, but the rotation state could not be updated. Verify ${site.label}.`
+            : `Save was clicked but not confirmed, and the rotation state could not be updated. Verify ${site.label}.`};
       }
       return {ok: true, saved: true, confirmed, name: selected.originalName, tabId: tab.id};
     }
-    await writeResult(`${selected.originalName} prepared for review. Click Save on Facebook if it is correct.`).catch(() => {});
+    await writeResult(`${selected.originalName} prepared for review. Click Save on ${site.label} if it is correct.`).catch(() => {});
     return {ok: true, saved: false, name: selected.originalName, tabId: tab.id};
   })();
   runInFlight = operation;

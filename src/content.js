@@ -132,13 +132,14 @@
     return true;
   }
 
-  // LinkedIn places delete, remove and frames controls next to the upload
-  // action. Any of them visible inside the photo dialog ends the run: one
-  // wrong label match must never reach a destructive control.
-  function dangerPresent(site, dialog) {
-    if (!site.dangerLabels || !dialog) return false;
-    return [...dialog.querySelectorAll(BUTTONS)]
-      .some(el => usableButton(el) && site.dangerLabels.test(label(el)));
+  // Destructive controls (delete, remove, frames) may legitimately sit beside
+  // the upload action in a photo dialog, so their mere presence must not end
+  // an otherwise valid run. The guard is scoped to actions instead: a control
+  // that carries a danger label is never pressed, an action candidate whose
+  // label also matches a danger pattern fails closed, and any ambiguity in
+  // the remaining candidates still fails closed.
+  function dangerLabel(site, el) {
+    return Boolean(site.dangerLabels) && site.dangerLabels.test(label(el));
   }
 
   const IMAGE_TYPE = /^(?:image\/[a-z0-9.+*-]+|\.(?:jpe?g|png|webp|heic|heif|gif|bmp))$/;
@@ -167,6 +168,12 @@
     const pattern = site.uploadAction === undefined ? /^(?:upload|add|choose) photo$/i : site.uploadAction;
     if (pattern === null) return null;
     const matches = [...dialog.querySelectorAll(BUTTONS)].filter(el => usableButton(el) && pattern.test(label(el)));
+    // An upload control whose label also matches a danger pattern is an
+    // ambiguity between staging and destruction; abort the run outright
+    // rather than silently degrading into the poll-until-timeout path.
+    if (matches.some(el => dangerLabel(site, el))) {
+      throw new Error(`The ${site.label} photo dialog shows a destructive control matching the upload action; stopped safely`);
+    }
     // One control can be wrapped in several nested buttons with the same name; press the innermost.
     const innermost = matches.filter(el => !matches.some(other => other !== el && el.contains(other)));
     return innermost.length === 1 ? innermost[0] : null;
@@ -543,9 +550,6 @@
     if (!dialogIdentity(site, opened)) {
       throw new Error(`The ${site.label} photo dialog did not match its verified structure; stopped safely`);
     }
-    if (dangerPresent(site, opened)) {
-      throw new Error(`The ${site.label} photo dialog shows delete, remove or frames controls; stopped safely`);
-    }
     const progress = {pressed: false, requested: null};
     const input = await findFileInput(progress);
     if (!input) throw new Error(`No file input inside the profile-picture dialog; stopped safely (${dialogReport(progress)})`);
@@ -569,11 +573,13 @@
 
   async function saveIfRequested(before) {
     const site = activeSite || SITES.facebook;
-    // Intermediate steps vary by UI version. All clicks stay dialog scoped.
+    // Intermediate steps vary by UI version. All clicks stay dialog scoped;
+    // a control carrying a danger label is never a Save candidate.
     const inDialog = (pattern) => () => {
       const dialog = profileDialog();
-      return dialog && !dialogBusy(dialog) && !dialogError(dialog) && readyPreview(dialog, before)
+      const candidate = dialog && !dialogBusy(dialog) && !dialogError(dialog) && readyPreview(dialog, before)
         ? uniqueClick(dialog, pattern) : null;
+      return candidate && !dangerLabel(site, candidate) ? candidate : null;
     };
     const findSave = inDialog(site.saveAction);
     const findNext = inDialog(site.nextAction);

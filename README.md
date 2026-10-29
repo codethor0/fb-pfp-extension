@@ -7,7 +7,7 @@
 
 A free, open-source browser extension that uses photos you choose to prepare or change your own Facebook profile picture. Packages exist for Chrome, Brave and Firefox. No developer account, remote service, or Python installation is required. Built for accounts you own, with a local image library and explicit publishing controls.
 
-**Version:** 0.4.3. The full automated battery passes from a clean clone, and the review flow has been verified against a live Facebook account. Version 0.2.5 is live on the Chrome Web Store; 0.4.2 is pending review and 0.4.3 (this tree) carries the post-audit hardening, ready to submit in either case.
+**Version:** 0.4.3. The full automated battery passes from a clean clone, and the review flow has been verified against a live Facebook account. Version 0.4.2 is live on the Chrome Web Store; 0.4.3 (this tree) carries the post-audit hardening and is submitted, pending review.
 
 ## Features
 

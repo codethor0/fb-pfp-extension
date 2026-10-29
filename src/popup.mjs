@@ -1,5 +1,8 @@
 import {listPhotos, savePhoto, deletePhoto} from './library.mjs';
 import {normalizePhoto, MAX_LIBRARY_COUNT, safePhotoName} from './images.mjs';
+import {resolveSiteRoute} from './logic.mjs';
+
+const siteLabel = settings => resolveSiteRoute(settings?.siteId)?.label || 'Facebook';
 
 const $ = id => document.getElementById(id);
 const status = (message, error = false) => {
@@ -87,11 +90,12 @@ async function run(type) {
   if (type === 'PUBLISH_NEXT' && !$('confirm-publish').checked) return;
   busy = true;
   updateActions();
-  status(type === 'PUBLISH_NEXT' ? 'Opening Facebook and changing your profile picture...' :
-    'Opening Facebook and preparing the picture dialog...');
   try {
     // Honor the current mode without silently modifying the schedule controls.
     const current = await request({type: 'GET_SETTINGS'});
+    const label = siteLabel(current.settings);
+    status(type === 'PUBLISH_NEXT' ? `Opening ${label} and changing your profile picture...` :
+      `Opening ${label} and preparing the picture dialog...`);
     if (current.settings.mode !== $('mode').value) {
       await request({type: 'SAVE_SETTINGS', settings: {...current.settings, mode: $('mode').value}});
     }
@@ -99,10 +103,10 @@ async function run(type) {
     if (reply.saved) {
       const unconfirmed = reply.confirmed === false;
       status(reply.warning || (unconfirmed
-        ? `${reply.name}: Save clicked, but Facebook did not confirm it. Verify your profile picture.`
-        : `${reply.name}: Save acknowledged. Verify the result on Facebook.`), !!reply.warning || unconfirmed);
+        ? `${reply.name}: Save clicked, but ${label} did not confirm it. Verify your profile picture.`
+        : `${reply.name}: Save acknowledged. Verify the result on ${label}.`), !!reply.warning || unconfirmed);
     }
-    else status(`${reply.name}: Ready for review in the Facebook tab. Save manually if correct.`);
+    else status(`${reply.name}: Ready for review in the ${label} tab. Save manually if correct.`);
   } catch (error) {status(error.message, true);}
   finally {
     busy = false;

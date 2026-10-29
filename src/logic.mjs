@@ -5,7 +5,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   scheduleTime: '09:15',
   usedIds: [],
   lastResult: 'No runs yet.',
-  reviewTabId: null
+  reviewTabId: null,
+  siteId: 'facebook',
 });
 
 export function isValidTime(time) {
@@ -19,12 +20,17 @@ export function sanitizeSettings(input = {}) {
     ? [...new Set(input.usedIds.filter(id => typeof id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(id)))].slice(-500)
     : [];
   const reviewTabId = Number.isInteger(input.reviewTabId) && input.reviewTabId >= 0 ? input.reviewTabId : null;
+  // Fail closed to the default site: a stored or injected siteId that does
+  // not resolve to an enabled route can never reroute a run.
+  const siteId = typeof input.siteId === 'string' && resolveSiteRoute(input.siteId)
+    ? input.siteId : DEFAULT_SETTINGS.siteId;
   return {
     mode,
     scheduleEnabled: input.scheduleEnabled === true,
     scheduleTime,
     usedIds,
     reviewTabId,
+    siteId,
     lastResult: typeof input.lastResult === 'string' ? input.lastResult.slice(0, 300) : DEFAULT_SETTINGS.lastResult
   };
 }
@@ -62,11 +68,37 @@ export function nextScheduledTime(now, time) {
   return next.getTime();
 }
 
-export function isAllowedFacebookPage(url) {
+// Worker-layer site routes: where each enabled site opens, which hostnames
+// qualify as its pages, and how it is named in user-facing strings. Only
+// sites the shipped build actually enables appear here; disabled adapters
+// stay content-side research entries until they have a verified, permitted
+// flow. Never add a route without host permissions granted for it.
+export const SITE_ROUTES = Object.freeze({
+  facebook: Object.freeze({
+    id: 'facebook',
+    label: 'Facebook',
+    profileUrl: 'https://www.facebook.com/me',
+    hosts: Object.freeze(['www.facebook.com']),
+    enabled: true,
+  }),
+});
+
+export function resolveSiteRoute(siteId) {
+  if (typeof siteId !== 'string') return null;
+  const route = SITE_ROUTES[siteId];
+  return route && route.enabled === true ? route : null;
+}
+
+export function isAllowedSitePage(route, url) {
+  if (!route) return false;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname === 'www.facebook.com';
+    return parsed.protocol === 'https:' && route.hosts.includes(parsed.hostname);
   } catch { return false; }
+}
+
+export function isAllowedFacebookPage(url) {
+  return isAllowedSitePage(SITE_ROUTES.facebook, url);
 }
 
 // A scheduled run closes its tab only when nothing was staged into Facebook's

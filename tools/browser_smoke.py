@@ -221,7 +221,16 @@ def main():
         launch = {'headless': True}
         if args.browser == 'chromium' and os.getenv('CHROMIUM_PATH'):
             launch['executable_path'] = os.environ['CHROMIUM_PATH']
-        if args.browser == 'firefox':
+        if args.browser == 'chromium' and os.getenv('CDP_URL'):
+            # Branded Chromium builds (Microsoft Edge) refuse a command-line
+            # --user-data-dir: their data-dir name is compiled into the brand
+            # and macOS TCC denies a CLI-spawned process the protected default
+            # dir, so playwright cannot launch them directly. Launch the
+            # browser yourself (for Edge: open -na "Microsoft Edge" --args
+            # --headless=new --remote-debugging-port=9223 about:blank) and
+            # point CDP_URL at http://localhost:9223.
+            browser = play.chromium.connect_over_cdp(os.environ['CDP_URL'])
+        elif args.browser == 'firefox':
             try:
                 browser = play.firefox.launch(headless=True)
             except Exception as first_exc:
@@ -341,11 +350,10 @@ def main():
                 page.close()
                 return reply
 
-            def run_linkedin(layout='normal', avatar='normal', path='/in/self'):
+            def run_linkedin(layout='normal', avatar='normal', path='/in/self', overrides=()):
                 # The LinkedIn adapter runs with its real guards and the real
                 # validatePage; only the disabled flag is flipped on inside the
-                # injected copy. The unprobed upload control must keep every
-                # run fail-closed before anything is staged.
+                # injected copy, plus any caller-supplied source overrides.
                 page = browser.new_page()
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
@@ -355,6 +363,9 @@ def main():
                 source = source.replace(
                     "      hosts: ['www.linkedin.com'],\n      enabled: false,",
                     "      hosts: ['www.linkedin.com'],\n      enabled: true,")
+                for old, new in overrides:
+                    assert old in source, old
+                    source = source.replace(old, new)
                 source = (source
                           .replace('location.protocol', '(window.__fakeProto||location.protocol)')
                           .replace('location.hostname', '(window.__fakeHost||location.hostname)')
@@ -518,9 +529,29 @@ def main():
                 assert reply.get('ok') is False and 'did not match its verified structure' in reply.get('error', ''), (layout, reply)
                 print('PASS: linkedin dialog identity rejects', layout)
 
+            # Danger labels beside a verified upload action no longer abort the
+            # run by themselves; the scoped guard only rejects destructive or
+            # ambiguous action candidates. With the upload control still
+            # unprobed, the run must now reach the fail-closed upload stop
+            # instead of the old blanket danger abort.
             reply = run_linkedin(layout='danger-frames')
-            assert reply.get('ok') is False and 'delete, remove or frames' in reply.get('error', ''), reply
-            print('PASS: linkedin danger labels abort the run')
+            assert reply.get('ok') is False and 'not been verified against the live site' in reply.get('error', ''), reply
+            print('PASS: linkedin danger controls beside the upload action do not abort a valid dialog')
+
+            # With a probed upload label injected, the run stages past the
+            # danger controls; the fixture simply has no file input to find.
+            upload = ("      uploadAction: null,\n", "      uploadAction: /^update photo$/i,\n")
+            reply = run_linkedin(layout='danger-frames', overrides=(upload,))
+            assert reply.get('ok') is False and 'No file input inside the profile-picture dialog' in reply.get('error', ''), reply
+            print('PASS: linkedin stages past danger controls with a unique clean upload action')
+
+            # An upload control whose label also matches a danger pattern is
+            # an ambiguity between staging and destruction: fail closed.
+            collision = ("      dangerLabels: /^(?:delete|remove|trash|frames?)$/i,\n",
+                         "      dangerLabels: /^(?:delete|remove|trash|frames?|update photo)$/i,\n")
+            reply = run_linkedin(overrides=(upload, collision))
+            assert reply.get('ok') is False and 'destructive control matching the upload action' in reply.get('error', ''), reply
+            print('PASS: linkedin danger-overlapping upload label fails closed')
 
             for avatar in ('duplicate', 'absent'):
                 reply = run_linkedin(avatar=avatar)

@@ -221,7 +221,16 @@ def main():
         launch = {'headless': True}
         if args.browser == 'chromium' and os.getenv('CHROMIUM_PATH'):
             launch['executable_path'] = os.environ['CHROMIUM_PATH']
-        if args.browser == 'firefox':
+        if args.browser == 'chromium' and os.getenv('CDP_URL'):
+            # Branded Chromium builds (Microsoft Edge) refuse a command-line
+            # --user-data-dir: their data-dir name is compiled into the brand
+            # and macOS TCC denies a CLI-spawned process the protected default
+            # dir, so playwright cannot launch them directly. Launch the
+            # browser yourself (for Edge: open -na "Microsoft Edge" --args
+            # --headless=new --remote-debugging-port=9223 about:blank) and
+            # point CDP_URL at http://localhost:9223.
+            browser = play.chromium.connect_over_cdp(os.environ['CDP_URL'])
+        elif args.browser == 'firefox':
             try:
                 browser = play.firefox.launch(headless=True)
             except Exception as first_exc:

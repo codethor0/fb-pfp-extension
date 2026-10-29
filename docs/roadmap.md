@@ -38,7 +38,15 @@ Order of attack, by demand and by DOM stability:
 - Firefox: build tooling exists (tools/build_firefox.py); publishing needs a
   Mozilla account and an AMO listing, following docs/amo-listing.md.
 - Edge: the Chromium package installs as-is; the Microsoft Partner Center
-  listing is a paperwork step, not a code step.
+  listing is a paperwork step, not a code step. Verified 2026-10-29 on real
+  Microsoft Edge 156.0.4314.50 (macOS, arm64): the full DOM battery passes,
+  80 PASS / 0 FAIL. Edge cannot be playwright-launched directly: its data-dir
+  name is compiled into the brand and macOS TCC denies a CLI-spawned process
+  the protected default dir, so the harness connects over CDP instead
+  (launch headless via `open -na "Microsoft Edge" --args --headless=new
+  --remote-debugging-port=9223 about:blank`, then run the battery with
+  `CDP_URL=http://localhost:9223`). The remaining Edge work is a Partner
+  Center submission and an installed-extension acceptance pass in real Edge.
 - Safari: real work. Safari Web Extensions wrap the same JS, but shipping
   needs Xcode, an Apple Developer Program account (99 USD per year) and
   either Mac App Store distribution or notarized developer distribution.

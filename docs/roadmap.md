@@ -36,7 +36,13 @@ Order of attack, by demand and by DOM stability:
 
 - Chromium: shipped, Chrome Web Store.
 - Firefox: build tooling exists (tools/build_firefox.py); publishing needs a
-  Mozilla account and an AMO listing, following docs/amo-listing.md.
+  Mozilla account and an AMO listing, following docs/amo-listing.md. The
+  0.4.3-content candidate package is staged at
+  store-release/fb-pfp-extension-v0.4.3-firefox-candidate.zip (sha256
+  558a0cb79ea1c7ef2c11292a9854e5c348a9455517572b99e66ad12af6a47924),
+  built from main after PR #15. Submit it only after the CWS 0.4.3 verdict
+  lands and the tree is tagged 0.4.4, so the version number means the same
+  thing on every store.
 - Edge: the Chromium package installs as-is; the Microsoft Partner Center
   listing is a paperwork step, not a code step. Verified 2026-10-29 on real
   Microsoft Edge 156.0.4314.50 (macOS, arm64): the full DOM battery passes,
@@ -47,12 +53,13 @@ Order of attack, by demand and by DOM stability:
   --remote-debugging-port=9223 about:blank`, then run the battery with
   `CDP_URL=http://localhost:9223`). The remaining Edge work is a Partner
   Center submission and an installed-extension acceptance pass in real Edge.
-- Safari: real work. Safari Web Extensions wrap the same JS, but shipping
-  needs Xcode, an Apple Developer Program account (99 USD per year) and
-  either Mac App Store distribution or notarized developer distribution.
-  The content script core carries over; the popup needs App-Store-compliant
-  copy and the build gains an Xcode project. Scheduled after the adapter
-  architecture settles, because each adapter multiplies the QA surface.
+- Safari: assessed in docs/safari-feasibility.md (2026-10-29). Feasible on
+  macOS with the Firefox-style event-page background, but distribution needs
+  the Apple Developer Program (99 USD per year), an Xcode wrapper, and an
+  installed-extension acceptance pass. iOS additionally lacks the `alarms`
+  API, so the daily-review schedule cannot work there. Xcode is not
+  installed on the build Mac yet; that and the membership are the two
+  owner-level decisions blocking this lane.
 
 ## Funding
 

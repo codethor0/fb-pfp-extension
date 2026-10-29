@@ -88,3 +88,28 @@ profile-picture flow the user explicitly starts.
   image pixels before Save and refuses on any mismatch.
 - LinkedIn and X adapters exist in the source as disabled contracts; only
   the Facebook adapter is enabled, and host permissions are not broadened.
+
+## Submission checklist (updated 2026-10-29)
+
+Everything below is verified except the steps marked (human), which need
+Thor's Mozilla account and click:
+
+1. Build the package from the tagged release:
+   `python3 tools/build_firefox.py` (self-checks pass).
+2. Confirm the built manifest: gecko id `fb-pfp@codethor0.github.io`,
+   `strict_min_version` 140.0, `data_collection_permissions: {required: ["none"]}`,
+   event-page module background, permissions `storage` + `alarms` only.
+   Verified on the staged candidate (sha256
+   558a0cb79ea1c7ef2c11292a9854e5c348a9455517572b99e66ad12af6a47924).
+3. (human) Create a Mozilla account at https://addons.mozilla.org/ if none
+   exists, enable two-factor authentication, and open Developer Hub.
+4. (human) Submit a new add-on, upload the zip from the release tag, and
+   paste Name / Summary / Description / Category / License from above.
+5. (human) Confirm the data-collection declaration: no data collected.
+6. (human) Paste the reviewer notes verbatim.
+7. Wait for review; respond in the reviewer thread if questions come back.
+
+Version rule: submit a build whose version tag matches the CWS train. The
+staged 0.4.3 candidate carries post-0.4.3 code, so submit it only after the
+CWS 0.4.3 verdict lands and the tree is tagged 0.4.4; then rebuild from that
+tag and update the version strings above before uploading.

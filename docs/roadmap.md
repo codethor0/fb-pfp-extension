@@ -51,8 +51,15 @@ Order of attack, by demand and by DOM stability:
   the protected default dir, so the harness connects over CDP instead
   (launch headless via `open -na "Microsoft Edge" --args --headless=new
   --remote-debugging-port=9223 about:blank`, then run the battery with
-  `CDP_URL=http://localhost:9223`). The remaining Edge work is a Partner
-  Center submission and an installed-extension acceptance pass in real Edge.
+  `CDP_URL=http://localhost:9223`). Installed-extension acceptance also
+  passes on real Edge (tools/edge_acceptance.py, 2026-10-29, 11 checks):
+  service worker install, settings round-trip, image import into IndexedDB,
+  daily-review alarm creation, storage flushed to disk, fresh-session boot,
+  and the review flow end to end against a mapped fixture, with Save
+  untouched. Two checks stay manual: cross-restart library persistence
+  (Edge headless uses a throwaway scoped profile and Edge 156 blocks CDP on
+  the default profile) and any live-Facebook verification. The remaining
+  Edge work is a Partner Center submission and those headed manual passes.
 - Safari: assessed in docs/safari-feasibility.md (2026-10-29). Feasible on
   macOS with the Firefox-style event-page background, but distribution needs
   the Apple Developer Program (99 USD per year), an Xcode wrapper, and an

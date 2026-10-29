@@ -55,6 +55,30 @@ Correcting the earlier version of this document:
 - This Mac has Safari 27.2 on macOS 27.2, which supports the temporary
   folder load directly; local Safari runtime verification is unblocked.
 
+## Local verification results (2026-10-29)
+
+Tested the same day on this Mac, driving the documented Apple flow by UI
+scripting (Safari Settings > Developer > Allow unsigned extensions, then
+Add Temporary Extension with the staged folder):
+
+- The temporary load works without Xcode, exactly as documented. Two
+  password authentications were required: one to enable unsigned
+  extensions, one implied by the flow on this macOS build.
+- The extension appears in Settings > Extensions under "Temporary",
+  enabled, version 0.4.3, with Uninstall / Show in Finder / Reload.
+- The toolbar item installs ("fb-pfp Local Rotator") and the popup opens
+  and renders fully, including the live photo count (0/20) read through
+  storage, which proves the MV3 service worker and the storage API work
+  in Safari.
+- Not yet verified in Safari (need interactive passes): photo import into
+  IndexedDB through the popup file picker, alarm creation and event-page
+  wake, and the review flow on facebook.com after granting the website
+  permission. The popup's controls are not exposed to macOS
+  accessibility, so these steps are manual.
+- Both developer settings reset when Safari quits, and Safari removes the
+  temporary extension after 24 hours or on quit; no persistent change was
+  left on the machine.
+
 ## Open items that must be tested, not assumed
 
 - **Alarms API on iOS.** MDN browser-compat data lists no `safari_ios`

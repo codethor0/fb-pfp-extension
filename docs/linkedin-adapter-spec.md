@@ -1,6 +1,15 @@
 # LinkedIn adapter specification
 
-Status: offline half implemented behind `enabled: false`. The avatar finder,
+> Historical research, 2026-10-17 probe era. Not an active implementation
+> plan: LinkedIn's user agreement prohibits third-party automation, the
+> adapter stays permanently disabled behind `enabled: false` with
+> `uploadAction: null`, and no live probe, staged upload, or selector
+> verification will ever run against LinkedIn. The supported path is the
+> local preparation and export workflow in
+> docs/linkedin-local-workflow.md. This document is kept so the offline
+> battery fixtures retain their design rationale.
+
+Status at freeze: offline half implemented behind `enabled: false`. The avatar finder,
 dialog identity check, scoped danger-label guard and profile-path guard run in
 the synthetic DOM battery on both engines. The guard rejects destructive or
 ambiguous action candidates rather than the whole dialog, so verified upload
@@ -96,6 +105,9 @@ only, never to find elements).
   viewer path only; a variant path is a new probe, not an assumption.
 
 ## Open items for the next live probe
+
+(Frozen. The sections below describe what a next probe would have covered;
+per the header, no next probe will happen.)
 
 1. Aria-labels and icon identifiers of the viewer's action buttons
    (update/upload especially).

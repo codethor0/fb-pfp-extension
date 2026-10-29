@@ -33,6 +33,7 @@ Prerequisites: Microsoft Edge installed, nothing on port 9223 or 8443.
 import http.server
 import json
 import os
+import shutil
 import socket
 import ssl
 import subprocess
@@ -49,9 +50,10 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 # A fresh port per run: Edge can leave headless instances behind that ignore
-# cleanup, and a stale instance answering 9223 makes the next run attach to
-# the wrong browser. headless instances carry --remote-debugging-port in
-# their command line, so cleanup can target them precisely.
+# cleanup, and a stale instance answering a fixed port makes the next run
+# attach to the wrong browser. Cleanup resolves the processes that own this
+# port and verifies they are Microsoft Edge before signalling anything, so
+# no pattern-matched kill can touch an unrelated user process.
 CDP_PORT = 9333 + (os.getpid() % 200)
 HTTPS_PORT = 8443
 CHECKS = []
@@ -97,8 +99,30 @@ def launch_edge():
     ok('edge launched headless via LaunchServices', info.get('Browser', ''))
 
 
+def edge_pids_on_port():
+    """PIDs holding the CDP port that verifiably belong to Microsoft Edge.
+
+    Cleanup only ever signals processes resolved from the port this run
+    owns, and only after `ps` confirms the process is Edge. No pattern
+    matching against command lines, so an unrelated process that happens
+    to mention the port number is never touched.
+    """
+    out = subprocess.run(
+        ['lsof', '-nP', '-ti', f':{CDP_PORT}'],
+        capture_output=True, text=True).stdout.split()
+    pids = []
+    for pid in out:
+        comm = subprocess.run(
+            ['ps', '-p', pid, '-o', 'comm='],
+            capture_output=True, text=True).stdout.strip()
+        if 'Edge' in comm:
+            pids.append(pid)
+    return pids
+
+
 def stop_edge(grace=20):
-    subprocess.run(['pkill', '-f', f'remote-debugging-port={CDP_PORT}'], check=False)
+    for pid in edge_pids_on_port():
+        subprocess.run(['kill', '-TERM', pid], check=False)
     deadline = time.time() + grace
     while time.time() < deadline:
         try:
@@ -106,12 +130,13 @@ def stop_edge(grace=20):
         except OSError:
             return
         time.sleep(0.5)
-    # Anything still holding the port ignores SIGTERM; make sure it is gone
+    # Anything still holding the port ignored SIGTERM; make sure it is gone
     # before the next launch, or wait_cdp can attach to a stale instance.
-    # A SIGKILL here can cost unflushed extension storage, so it is the last
-    # resort after a long grace, never the first move.
-    pids = subprocess.run(['lsof', '-ti', f':{CDP_PORT}'], capture_output=True, text=True).stdout.split()
-    for pid in pids:
+    # Re-resolve the owners and verify they are still Edge before SIGKILL:
+    # a SIGKILL can cost unflushed extension storage, so it is the last
+    # resort after a long grace, never the first move, and it only ever
+    # lands on PIDs this function resolved itself.
+    for pid in edge_pids_on_port():
         subprocess.run(['kill', '-9', pid], check=False)
     time.sleep(1)
 
@@ -157,8 +182,32 @@ def extension_targets(play):
     return None
 
 
+def cleanup_scoped_profiles(before, attempts=3):
+    """Remove only the scoped headless profiles this run created.
+
+    Edge headless cannot be pointed at a custom data dir on macOS, so
+    every launch litters a throwaway scoped_dir* profile under the
+    headless data root. Pre-existing directories are never touched;
+    only directories that appeared after the run's snapshot are removed,
+    with a short retry because Edge tears down asynchronously after its
+    debugging port closes.
+    """
+    root = Path.home() / 'Library/Application Support/Microsoft Edge-headless'
+    if not root.is_dir():
+        return
+    for _ in range(attempts):
+        leftovers = [d for d in root.glob('scoped_dir*') if d not in before]
+        if not leftovers:
+            return
+        for d in leftovers:
+            shutil.rmtree(d, ignore_errors=True)
+        time.sleep(1)
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix='fb-pfp-edge-')
+    scoped_root = Path.home() / 'Library/Application Support/Microsoft Edge-headless'
+    scoped_before = set(scoped_root.glob('scoped_dir*')) if scoped_root.is_dir() else set()
     photo = os.path.join(tmp, 'photo.jpg')
     with open(photo, 'wb') as fh:
         import base64
@@ -249,7 +298,6 @@ def main():
             # data reached disk: the scoped profile holds non-empty storage
             # for this extension. The cross-restart check itself is a
             # headed, manual acceptance step on real Edge.
-            scoped_root = Path.home() / 'Library/Application Support/Microsoft Edge-headless'
             profiles = sorted(scoped_root.glob(f'scoped_dir*/Default'),
                                key=lambda p: p.stat().st_mtime, reverse=True)
             disk_ok = False
@@ -329,6 +377,9 @@ def main():
     finally:
         stop_edge()
         server.shutdown()
+        server.server_close()
+        cleanup_scoped_profiles(scoped_before)
+        shutil.rmtree(tmp, ignore_errors=True)
 
     print(f'ACCEPTANCE: {len(CHECKS)} checks passed on Microsoft Edge')
 

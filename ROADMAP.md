@@ -23,15 +23,17 @@ Where the project is going and why. Items ship when they are verified, not befor
 
 ## After that
 
-- **Enable the LinkedIn and X adapters.** Their logged-in DOMs must be probed
-  on real accounts before any selector ships, and both platforms restrict
-  automation. An adapter is enabled only after it passes the same fail-safe
-  standard Facebook meets: no blind clicks, verification before Save,
-  manual-confirm default on restrictive platforms. Enabling an adapter also
-  requires deliberately broadening host permissions; the release audit
-  tripwires both. The LinkedIn probe evidence and adapter specification
-  live in `docs/linkedin-adapter-spec.md`; the X probe evidence and adapter
-  specification live in `docs/x-adapter-spec.md`.
+- **Local export workflow for LinkedIn.** LinkedIn's terms prohibit
+  third-party automation, so the DOM adapter stays disabled
+  (`uploadAction: null`) permanently; the adapter spec is kept as
+  historical research. The supported feature prepares a metadata-free
+  square JPEG locally and downloads it for the user to upload through
+  LinkedIn's own interface. Design: docs/linkedin-local-workflow.md.
+- **Safari runtime verification on this Mac.** macOS Safari loads the
+  extension folder temporarily without Xcode (Add Temporary Extension);
+  assess docs/safari-feasibility.md before any distribution decision.
+- X remains a contract entry only, disabled, until its terms permit a
+  maintainable path.
 
 ## Never
 

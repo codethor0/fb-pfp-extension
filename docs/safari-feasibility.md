@@ -1,6 +1,7 @@
 # Safari feasibility assessment
 
-Date: 2026-10-29 (corrected same day against Apple's current documentation).
+Date: 2026-10-29 (corrected twice same day against Apple's current
+documentation; second correction adds the no-Xcode local load path).
 Scope: what it takes to ship fb-pfp on Safari for macOS and iOS. Every
 claim carries its source; where sources conflict, the conflict is stated
 instead of resolved by assumption.
@@ -42,17 +43,17 @@ Correcting the earlier version of this document:
   2026-10-29). The command-line `xcrun safari-web-extension-packager`
   (formerly `safari-web-extension-converter`) still exists for projects
   that need native code, a custom containing app, or local builds.
-- **Xcode is still required for local macOS runtime testing.** Safari
-  loads web extensions only from a containing app, and generating that app
-  locally uses the packager CLI that ships with Xcode. Xcode itself is a
-  free download; the paid membership is not needed to build, run unsigned,
-  and test locally. Unsigned local testing: enable Develop > Allow
-  Unsigned Extensions in Safari (resets when Safari quits), then enable
-  the extension in Safari Settings > Extensions (Apple-documented flow,
-  corroborated by multiple 2026 third-party guides).
-- This Mac has Safari 27.2 on macOS 27.2 but only Command Line Tools; the
-  Xcode install (free, owner action, roughly a 30 to 60 minute download)
-  is the single blocker for local Safari runtime verification.
+- **Xcode is not required for local macOS runtime testing.** macOS Safari
+  temporarily installs a web extension straight from its folder or a zip:
+  Safari > Settings > Developer > Add Temporary Extension, with "Allow
+  unsigned extensions" checked in the same tab (Apple, "Running your Safari
+  web extension", developer.apple.com, checked 2026-10-29). The unsigned
+  setting resets when Safari quits, and Safari removes temporary extensions
+  after 24 hours or when it quits, so this is a development loop only, not
+  a distribution channel. Xcode remains required only for iOS on-device
+  testing, native code, or building a containing app locally.
+- This Mac has Safari 27.2 on macOS 27.2, which supports the temporary
+  folder load directly; local Safari runtime verification is unblocked.
 
 ## Open items that must be tested, not assumed
 
@@ -74,15 +75,17 @@ Correcting the earlier version of this document:
 
 ## Recommended sequencing
 
-1. Install Xcode (free; owner decision). Run
-   `xcrun safari-web-extension-packager --copy-resources` on a release tag
-   and record every warning it emits.
-2. Add `tools/build_safari.py` emitting the Safari manifest delta on the
-   Firefox event-page background; strip `minimum_chrome_version`; verify
-   what the packager says about `data_collection_permissions`-style keys.
-3. Runtime-test in Safari on this Mac with Allow Unsigned Extensions:
-   popup lifecycle, event page wake on alarm, IndexedDB storage, and the
-   review flow against a local fixture.
-4. Feature-detect `alarms` and degrade the schedule UI on iOS.
-5. Only then decide on the 99 USD membership for App Store Connect
-   packaging, TestFlight on a real iPhone, and App Store submission.
+1. Build a Safari-manifest delta (`tools/build_safari.py`) on the Firefox
+   event-page background; strip `minimum_chrome_version`; note anything
+   else Safari-specific.
+2. Runtime-test on this Mac with the temporary folder load: enable "Allow
+   unsigned extensions", Add Temporary Extension, then verify popup
+   lifecycle, event page wake on alarm, IndexedDB storage, and the review
+   flow against a local fixture.
+3. Feature-detect `alarms` and degrade the schedule UI on iOS.
+4. Only then decide on the 99 USD membership for App Store Connect
+   packaging, TestFlight on a real iPhone, and App Store submission. If
+   the membership is taken, run the App Store Connect packager on a
+   release tag and record every warning it emits; use the
+   `xcrun safari-web-extension-packager` CLI only if native code or a
+   custom containing app ever becomes necessary.

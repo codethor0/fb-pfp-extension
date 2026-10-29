@@ -20,12 +20,40 @@ own click.
 ## Goals
 
 - Import a photo locally (reuse the existing library pipeline).
-- Normalize it: square crop, resize, convert to privacy-safe JPEG, strip
-  EXIF/GPS metadata. `src/images.mjs` (`normalizePhoto`) already does all
-  of this; no new image code is expected.
+- Transform it for the target platform: center square crop, resize to the
+  target's recommended dimensions, convert to privacy-safe JPEG, strip
+  EXIF/GPS metadata.
 - Preview the result at platform-specific dimensions before export.
 - Export the finished image to disk with one click, clearly named.
 - The user uploads it through LinkedIn's own profile-photo flow.
+
+## The transform is new code, not normalizePhoto
+
+`normalizePhoto` (src/images.mjs) scales an image down to fit within
+`MAX_DIMENSION` and preserves the aspect ratio; it never crops. Verified
+against the source on 2026-10-29. The export path therefore needs a
+separate transform, proposed as `cropSquareForExport(blob, size)`:
+
+1. Decode with `createImageBitmap` and validate with the same
+   `dimensionsSupported` guard `normalizePhoto` uses.
+2. Center-crop the shortest side: crop side `s = min(width, height)`,
+   source rectangle centered on the image.
+3. Draw the crop into a `size x size` canvas with a white background (same
+   convention as `normalizePhoto`), export JPEG at 0.88 quality, and cap
+   the output with the existing size guard.
+4. Pure function over the stored blob: it must not mutate the stored
+   photo, touch the library, or share state with the Facebook pipeline.
+   Callers pass a copy; the rotation state and IndexedDB records stay
+   exactly as they were.
+
+Implementation requirements:
+
+- Live in `src/images.mjs` next to `normalizePhoto`, sharing its guards
+  and error style, with unit tests covering: landscape source, portrait
+  source, already-square source, odd dimensions (rounding), and a
+  regression that parses the exported bytes and asserts no EXIF segments
+  survive.
+- The Facebook normalization path is not modified by this work.
 
 ## Non-goals
 
@@ -52,16 +80,17 @@ can join later without new UI:
 
 1. `listPhotos()` -> user picks a stored photo (or imports a new one).
 2. `getPhoto(id)` -> blob.
-3. `normalizePhoto(blob)` (existing) -> cropped/resized/metadata-free JPEG.
+3. `cropSquareForExport(blob, targetSize)` (new, see above) -> square,
+   metadata-free JPEG at the target size.
 4. Anchor download with `download` attribute, filename derived from the
    original name plus the target id, sanitized via `safePhotoName`.
 5. Nothing is stored, sent, or remembered for the export itself.
 
 ## Security and privacy notes
 
-- The exported JPEG carries no camera metadata because `normalizePhoto`
-  strips it; add a regression that parses the exported bytes and asserts
-  no EXIF segments survive.
+- The exported JPEG carries no camera metadata because the canvas
+  re-encode drops EXIF; the regression test parses the exported bytes and
+  asserts no EXIF segments survive.
 - Export runs entirely offline after the photo is read from IndexedDB.
 - The download attribute approach needs no new permissions.
 

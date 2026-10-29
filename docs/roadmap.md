@@ -5,7 +5,10 @@ on: probe before code, fail closed, review-first, local only, no telemetry.
 
 ## Platform adapters
 
-Each new site follows the same gate the LinkedIn adapter is going through:
+Each new site follows the same gate, and the gate starts with permission,
+not selectors: a platform whose terms prohibit automation never gets a
+live adapter at all. Where automation is permitted (Facebook today), the
+sequence is:
 
 1. Read-only probe of the logged-in DOM on the maintainer's own account,
    English UI, paced like a human. Nothing uploaded, staged or saved.
@@ -23,14 +26,16 @@ Each new site follows the same gate the LinkedIn adapter is going through:
 
 Order of attack, by demand and by DOM stability:
 
-- LinkedIn: offline half done; live probe items are listed in
-  docs/linkedin-adapter-spec.md (viewer action labels, file input mount
-  point, cropper structure, post-save signal).
+- LinkedIn: automation dead end by policy; the adapter stays disabled
+  (`uploadAction: null`) forever. The supported path is the local
+  photo preparation and export workflow in
+  docs/linkedin-local-workflow.md; the probe-era spec in
+  docs/linkedin-adapter-spec.md is kept as historical research only.
 - Instagram: research item. instagram.com web profile editing exists, but
   the photo editor's DOM is unprobed. Needs the same probe before any
   selector is written.
-- X: contract entry only. X restricts automation aggressively; revisit only
-  if the adapter architecture proves itself on LinkedIn.
+- X: contract entry only. X restricts automation aggressively; revisit
+  only if its terms permit and a maintainable, permitted path exists.
 
 ## Browser matrix
 
@@ -51,18 +56,26 @@ Order of attack, by demand and by DOM stability:
   the protected default dir, so the harness connects over CDP instead
   (launch headless via `open -na "Microsoft Edge" --args --headless=new
   --remote-debugging-port=9223 about:blank`, then run the battery with
-  `CDP_URL=http://localhost:9223`). The remaining Edge work is a Partner
-  Center submission and an installed-extension acceptance pass in real Edge;
-  that acceptance run is documented in tools/edge_acceptance.py (PR #17).
+  `CDP_URL=http://localhost:9223`). Installed-extension acceptance also
+  passes on real Edge (tools/edge_acceptance.py, 2026-10-29, 11 checks):
+  service worker install, settings round-trip, image import into IndexedDB,
+  daily-review alarm creation, storage flushed to disk, fresh-session boot,
+  and the review flow end to end against a mapped fixture, with Save
+  untouched. Two checks stay manual: cross-restart library persistence
+  (Edge headless uses a throwaway scoped profile and Edge 156 blocks CDP on
+  the default profile) and any live-Facebook verification. The remaining
+  Edge work is a Partner Center submission and those headed manual passes.
 - Safari: corrected against Apple's current documentation in
   docs/safari-feasibility.md (2026-10-29). Xcode is no longer needed for
   distribution packaging (the App Store Connect Safari Web Extension
-  Packager, WWDC26, packages a ZIP without a Mac), but a paid membership
-  is still required for distribution, and Xcode (free) is still required
-  for local runtime testing. The iOS Alarms API conflict (MDN: unsupported;
-  external review: Apple documents it) stays open until a real-device test;
-  the build will feature-detect alarms and degrade the schedule UI rather
-  than assume. Blocked only on the free Xcode install for local testing.
+  Packager, WWDC26, packages a ZIP without a Mac) and is not needed for
+  local macOS testing either (Safari loads the extension folder or zip
+  temporarily via Settings > Developer > Add Temporary Extension). A paid
+  membership is still required only for distribution through App Store
+  Connect. The iOS Alarms API conflict (MDN: unsupported; external review:
+  Apple documents it) stays open until a real-device test; the build will
+  feature-detect alarms and degrade the schedule UI rather than assume.
+  Local Safari runtime verification is unblocked on the build Mac.
 
 ## Funding
 

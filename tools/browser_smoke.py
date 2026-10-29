@@ -105,6 +105,42 @@ def fixture(layout='normal', change='accepted', save='close', avatar=AVATAR_IMG)
             .replace('ALT_PHOTO', image_payload((230, 30, 40)))+'</body></html>')
 
 
+# LinkedIn fixtures mirror the probed structure in docs/linkedin-adapter-spec.md:
+# a cover photo, a top-card empty-alt photo, and a viewer dialog carrying an h2
+# "Profile photo" plus img[alt="Profile image"]. Nothing here is a live DOM claim
+# beyond that spec.
+LI_BASE = r'''
+<style>[hidden]{display:none!important}button,img{display:block;margin:12px}#cover{width:792px;height:198px}#avatar,.dup{width:120px;height:120px}</style>
+<img id="cover" alt="Cover photo" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">
+LI_AVATAR
+<script>
+const add=html=>document.body.insertAdjacentHTML('beforeend',html);
+const viewer=inner=>`<div role="dialog" id="viewer">${inner}</div>`;
+const HEADING='<h2>Profile photo</h2>';
+const PREVIEW='<img alt="Profile image" id="big" width="400" height="400" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">';
+const ACTIONS='<button aria-label="Update photo" id="update">u</button><button aria-label="Dismiss" id="dismiss">x</button>';
+LI_LAYOUT
+</script>
+'''
+LI_LAYOUTS = {
+    'normal': "document.querySelector('#card').addEventListener('click',()=>add(viewer(HEADING+PREVIEW+ACTIONS)));",
+    'missing-heading': "document.querySelector('#card').addEventListener('click',()=>add(viewer('<span>Profile photo</span>'+PREVIEW+ACTIONS)));",
+    'missing-preview': "document.querySelector('#card').addEventListener('click',()=>add(viewer(HEADING+ACTIONS+'<span>Profile photo</span>')));",
+    'wrong-heading': "document.querySelector('#card').addEventListener('click',()=>add(viewer('<h2>People also viewed</h2><span>Profile photo</span>'+PREVIEW)));",
+    'danger-frames': "document.querySelector('#card').addEventListener('click',()=>add(viewer(HEADING+PREVIEW+'<button aria-label=\"Frames\">f</button>'+ACTIONS)));",
+}
+LI_AVATARS = {
+    'normal': '<button id="card"><img id="avatar" alt="" width="120" height="120" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></button>',
+    'duplicate': '<button id="card"><img id="avatar" alt="" width="120" height="120" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></button><img class="dup" alt="" width="120" height="120" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">',
+    'absent': '<div id="card"></div>',
+}
+
+
+def li_fixture(layout='normal', avatar='normal'):
+    return ('<!doctype html><html><body>'+LI_BASE.replace('LI_AVATAR', LI_AVATARS[avatar])
+            .replace('LI_LAYOUT', LI_LAYOUTS[layout])+'</body></html>')
+
+
 def image_payload(color=(20, 155, 220)):
     output = io.BytesIO()
     Image.new('RGB', (180, 180), color).save(output, 'JPEG')
@@ -305,6 +341,37 @@ def main():
                 page.close()
                 return reply
 
+            def run_linkedin(layout='normal', avatar='normal', path='/in/self'):
+                # The LinkedIn adapter runs with its real guards and the real
+                # validatePage; only the disabled flag is flipped on inside the
+                # injected copy. The unprobed upload control must keep every
+                # run fail-closed before anything is staged.
+                page = browser.new_page()
+                errors = []
+                page.on('pageerror', lambda error: errors.append(str(error)))
+                page.set_content(li_fixture(layout, avatar))
+                page.evaluate('window.chrome={runtime:{id:"test-ext",onMessage:{addListener(fn){window.__handler=fn;}}}};')
+                source = apply_test_patches(CONTENT.read_text(), strip_validate=False)
+                source = source.replace(
+                    "      hosts: ['www.linkedin.com'],\n      enabled: false,",
+                    "      hosts: ['www.linkedin.com'],\n      enabled: true,")
+                source = (source
+                          .replace('location.protocol', '(window.__fakeProto||location.protocol)')
+                          .replace('location.hostname', '(window.__fakeHost||location.hostname)')
+                          .replace('location.pathname', '(window.__fakePath||location.pathname)'))
+                page.add_script_tag(content=source)
+                page.evaluate('''({p}) => {
+                  window.__fakeProto = "https:";
+                  window.__fakeHost = "www.linkedin.com";
+                  window.__fakePath = p;
+                }''', {'p': path})
+                reply = page.evaluate('''({data}) => new Promise(resolve=>window.__handler(
+                    {type:'PREPARE_PHOTO',data,mime:'image/jpeg',fileName:'profile-photo.jpg',publish:false},
+                    {id:'test-ext'},resolve))''', {'data': image_payload()})
+                assert not errors, errors
+                page.close()
+                return reply
+
             for publish in (False, True):
                 reply, page = run(fixture(), publish)
                 assert reply.get('ok') is True and reply.get('saved') is publish, reply
@@ -437,6 +504,32 @@ def main():
             reply = run_guard('www.facebook.com', path='/home')
             assert reply.get('ok') is False and 'No photo selected' in reply.get('error', ''), reply
             print('PASS: site guard refuses the Facebook home timeline')
+
+            # LinkedIn offline half: the real adapter guards run with the
+            # disabled flag flipped on inside the injected copy only. Every
+            # run must fail closed, because the upload control labels are an
+            # open live-probe item (docs/linkedin-adapter-spec.md).
+            reply = run_linkedin()
+            assert reply.get('ok') is False and 'not been verified against the live site' in reply.get('error', ''), reply
+            print('PASS: linkedin stops at the unprobed upload control without staging anything')
+
+            for layout in ('missing-heading', 'missing-preview', 'wrong-heading'):
+                reply = run_linkedin(layout=layout)
+                assert reply.get('ok') is False and 'did not match its verified structure' in reply.get('error', ''), (layout, reply)
+                print('PASS: linkedin dialog identity rejects', layout)
+
+            reply = run_linkedin(layout='danger-frames')
+            assert reply.get('ok') is False and 'delete, remove or frames' in reply.get('error', ''), reply
+            print('PASS: linkedin danger labels abort the run')
+
+            for avatar in ('duplicate', 'absent'):
+                reply = run_linkedin(avatar=avatar)
+                assert reply.get('ok') is False and 'Could not uniquely identify' in reply.get('error', ''), (avatar, reply)
+                print('PASS: linkedin avatar', avatar, 'stops untouched')
+
+            reply = run_linkedin(path='/feed/')
+            assert reply.get('ok') is False and 'Open your own LinkedIn profile' in reply.get('error', ''), reply
+            print('PASS: linkedin refuses non-profile pages')
 
             reply, page = run(fixture())
             assert reply.get('ok') is True, reply

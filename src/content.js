@@ -56,7 +56,7 @@
     return String(element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || '').trim();
   }
 
-  function ownAvatar() {
+  function facebookAvatar() {
     // The profile header and a small sticky avatar can share a name. Use the large exact match,
     // including SVG avatars, and stop when there are two comparable large matches.
     const named = [...document.querySelectorAll('img, [role="img"]')].filter(visible);
@@ -77,14 +77,38 @@
     return fallback.length === 1 ? fallback[0] : null;
   }
 
+  // LinkedIn probe (docs/linkedin-adapter-spec.md): the top-card photo is an
+  // img with an empty accessible name near 100 to 130 CSS px, under the cover
+  // photo (img[alt="Cover photo"], excluded by its name). CDN URL shapes are
+  // never used to find elements. Zero or two candidates both fail closed.
+  function linkedinAvatar() {
+    const candidates = [...document.querySelectorAll('img')].filter(el => {
+      if (accessibleName(el) !== '') return false;
+      if (el.closest('[role="dialog"], dialog')) return false;
+      const box = el.getBoundingClientRect();
+      return visible(el) && box.width >= 90 && box.width <= 170 &&
+        box.height >= 90 && box.height <= 170 &&
+        Math.abs(box.width - box.height) <= 20;
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  function findAvatar() {
+    const site = activeSite || SITES.facebook;
+    return site.id === 'linkedin' ? linkedinAvatar() : facebookAvatar();
+  }
+
   function profileDialogs() {
     const dialogs = [...document.querySelectorAll('[role="dialog"], dialog')].filter(visible);
     // Match on the accessible name first. A dialog named something else, such
     // as "Create post", can mention profile pictures in its body text without
     // being the profile-picture dialog, so named non-matches are excluded.
-    const named = dialogs.filter(el => /profile picture/i.test(accessibleName(el)));
+    // The match text is per site: Facebook names the dialog "Profile picture",
+    // LinkedIn's viewer carries an h2 "Profile photo".
+    const dialogText = (activeSite || SITES.facebook).dialogText || /profile picture/i;
+    const named = dialogs.filter(el => dialogText.test(accessibleName(el)));
     const matches = named.length ? named
-      : dialogs.filter(el => !accessibleName(el) && /profile picture/i.test(el.textContent || ''));
+      : dialogs.filter(el => !accessibleName(el) && dialogText.test(el.textContent || ''));
     // One dialog can sit inside another; the outermost one holds everything.
     return matches.filter(el => !matches.some(other => other !== el && other.contains(el)));
   }
@@ -94,6 +118,27 @@
   function profileDialog() {
     const matches = profileDialogs();
     return matches.length === 1 ? matches[0] : null;
+  }
+
+  // Per-site dialog identity, from logged-in probes only. Facebook's dialog
+  // is proven by the shared core already, so it declares no extra anchors.
+  // LinkedIn's viewer must carry both the probed heading and the probed
+  // preview image before anything else is allowed to happen inside it.
+  function dialogIdentity(site, dialog) {
+    if (!dialog) return false;
+    if (site.headingText && ![...dialog.querySelectorAll('h2')]
+      .some(heading => site.headingText.test((heading.textContent || '').trim()))) return false;
+    if (site.previewAlt && !dialog.querySelector(`img[alt="${site.previewAlt.replace(/"/g, '')}"]`)) return false;
+    return true;
+  }
+
+  // LinkedIn places delete, remove and frames controls next to the upload
+  // action. Any of them visible inside the photo dialog ends the run: one
+  // wrong label match must never reach a destructive control.
+  function dangerPresent(site, dialog) {
+    if (!site.dangerLabels || !dialog) return false;
+    return [...dialog.querySelectorAll(BUTTONS)]
+      .some(el => usableButton(el) && site.dangerLabels.test(label(el)));
   }
 
   const IMAGE_TYPE = /^(?:image\/[a-z0-9.+*-]+|\.(?:jpe?g|png|webp|heic|heif|gif|bmp))$/;
@@ -118,7 +163,10 @@
   }
 
   function uploadButton(dialog) {
-    const matches = [...dialog.querySelectorAll(BUTTONS)].filter(el => usableButton(el) && /^(?:upload|add|choose) photo$/i.test(label(el)));
+    const site = activeSite || SITES.facebook;
+    const pattern = site.uploadAction === undefined ? /^(?:upload|add|choose) photo$/i : site.uploadAction;
+    if (pattern === null) return null;
+    const matches = [...dialog.querySelectorAll(BUTTONS)].filter(el => usableButton(el) && pattern.test(label(el)));
     // One control can be wrapped in several nested buttons with the same name; press the innermost.
     const innermost = matches.filter(el => !matches.some(other => other !== el && el.contains(other)));
     return innermost.length === 1 ? innermost[0] : null;
@@ -151,6 +199,12 @@
   }
 
   async function findFileInput(progress) {
+    const site = activeSite || SITES.facebook;
+    // An adapter whose upload control labels are unprobed (null uploadAction)
+    // stages nothing, ever: fail closed before any input hunt begins.
+    if (site.uploadAction === null) {
+      throw new Error(`${site.label} photo upload control has not been verified against the live site; stopped before staging anything`);
+    }
     const deadline = Date.now() + DIALOG_WAIT_MS;
     let readySince = 0;
     while (Date.now() < deadline) {
@@ -200,6 +254,7 @@
       id: 'facebook',
       hosts: ['www.facebook.com'],
       enabled: true,
+      label: 'Facebook',
       chooseAction: /^(?:choose|update) profile picture$/i,
       saveAction: /^save(?: changes)?$/i,
       nextAction: /^(?:select photo|next)$/i,
@@ -209,7 +264,21 @@
       id: 'linkedin',
       hosts: ['www.linkedin.com'],
       enabled: false,
-      note: 'Contract only. LinkedIn restricts automation; ship disabled until the logged-in DOM is probed.',
+      label: 'LinkedIn',
+      // Probe evidence (docs/linkedin-adapter-spec.md, 2026-10-17): the
+      // viewer dialog carries an h2 "Profile photo" and img[alt="Profile
+      // image"], and the top-card photo is an empty-alt img near 100 to 130
+      // CSS px under the cover photo. Everything past the dialog identity
+      // check stays fail-closed until the live probe verifies the upload
+      // control labels, so uploadAction stays null and nothing is staged.
+      dialogText: /profile photo/i,
+      headingText: /^profile photo$/i,
+      previewAlt: 'Profile image',
+      dangerLabels: /^(?:delete|remove|trash|frames?)$/i,
+      uploadAction: null,
+      requirePath: /^\/in\//,
+      errorHint: 'Check the English LinkedIn UI on your own profile.',
+      note: 'Offline half only. The avatar finder, dialog identity and danger guards run in the DOM battery; the upload control label is an open probe item.',
     },
     x: {
       id: 'x',
@@ -240,6 +309,9 @@
       if (/^\/(?:home(?:\.php)?)?$/i.test(location.pathname)) {
         throw new Error('Facebook did not open your profile. No photo selected.');
       }
+    }
+    if (site.requirePath && !site.requirePath.test(location.pathname)) {
+      throw new Error(`Open your own ${site.label} profile first, then retry`);
     }
   }
 
@@ -443,7 +515,7 @@
     let lastPreview = null;
     while (Date.now() < deadline) {
       const dialog = profileDialog();
-      if (dialog && dialogError(dialog)) throw new Error('Facebook reported an upload problem; no automatic Save attempted');
+      if (dialog && dialogError(dialog)) throw new Error(`${(activeSite || SITES.facebook).label} reported an upload problem; no automatic Save attempted`);
       const preview = dialog && !dialogBusy(dialog) ? (readyPreview(dialog, before) || await verifyPreview(dialog, before)) : null;
       if (!preview || preview !== lastPreview) readySince = 0;
       if (preview && !readySince) readySince = Date.now();
@@ -456,15 +528,24 @@
 
   async function uploadIntoDialog(bytes, expected) {
     const site = activeSite || SITES.facebook;
-    const avatar = await waitUntil(ownAvatar);
+    const avatar = await waitUntil(findAvatar);
     if (!avatar) throw new Error(`Could not uniquely identify your own profile picture. ${site.errorHint}`);
     press(avatar.closest('button, [role="button"]') || avatar);
 
-    const chooser = await waitUntil(() => uniqueClick(document, site.chooseAction));
-    if (!chooser) throw new Error('Choose profile picture action was not uniquely identified');
-    press(chooser);
+    if (site.chooseAction) {
+      const chooser = await waitUntil(() => uniqueClick(document, site.chooseAction));
+      if (!chooser) throw new Error('Choose profile picture action was not uniquely identified');
+      press(chooser);
+    }
 
     if (!await waitUntil(profileDialog)) throw new Error('Profile-picture dialog did not open; no image was uploaded');
+    const opened = profileDialog();
+    if (!dialogIdentity(site, opened)) {
+      throw new Error(`The ${site.label} photo dialog did not match its verified structure; stopped safely`);
+    }
+    if (dangerPresent(site, opened)) {
+      throw new Error(`The ${site.label} photo dialog shows delete, remove or frames controls; stopped safely`);
+    }
     const progress = {pressed: false, requested: null};
     const input = await findFileInput(progress);
     if (!input) throw new Error(`No file input inside the profile-picture dialog; stopped safely (${dialogReport(progress)})`);
@@ -567,7 +648,7 @@
     // Only a settled, closed dialog counts as acknowledgement. A cancel, an
     // error or a dialog that never settled is reported as unconfirmed.
     if (result.confirmed === true) {
-      showNotice('fb-pfp: Save acknowledged by the Facebook dialog. Verify your profile picture.');
+      showNotice(`fb-pfp: Save acknowledged by the ${(activeSite || SITES.facebook).label} dialog. Verify your profile picture.`);
     } else {
       showNotice('fb-pfp: Save was clicked, but Facebook did not confirm it. Check your profile picture.', true);
     }

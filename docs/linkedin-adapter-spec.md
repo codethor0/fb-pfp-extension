@@ -1,8 +1,12 @@
 # LinkedIn adapter specification
 
-Status: spec only. The adapter ships disabled. No selector in this document
-is live code, and none may ship until each one is verified against the live
-site on a real account, the same standard the Facebook adapter meets.
+Status: offline half implemented behind `enabled: false`. The avatar finder,
+dialog identity check, danger-label guard and profile-path guard run in the
+synthetic DOM battery on both engines. The upload control labels remain open
+probe items; `uploadAction` stays `null`, so the adapter stages nothing.
+No selector in this document is live code, and none may ship until each one
+is verified against the live site on a real account, the same standard the
+Facebook adapter meets.
 
 ## Probe evidence
 

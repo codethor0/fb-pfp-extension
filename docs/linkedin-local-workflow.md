@@ -1,7 +1,9 @@
 # Local profile-photo preparation and export workflow
 
-Date: 2026-10-29. Status: design spec, not implemented.
+Date: 2026-10-29. Status: implemented (feature/linkedin-export), pending release.
 Supersedes: any plan to enable the LinkedIn DOM automation adapter.
+Target size grounded in LinkedIn Help (checked 2026-10-29): profile photo
+minimum 400 x 400 px, maximum file size 8 MB.
 
 ## Why this direction
 

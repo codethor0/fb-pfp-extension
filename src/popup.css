@@ -40,3 +40,6 @@ footer { padding-top:9px; font-size:10px; color:#748aa1; }
 button.publish { width:100%; background:#9f2936; color:#fff; border-color:#cb4e5f; margin-top:3px; }
 button.publish:hover {background:#b83244;}
 button.publish:disabled {background:#3e323e; color:#a8a0aa; border-color:#68515d;}
+.export-preview { display:flex; justify-content:center; margin:12px 0 4px; }
+.export-preview img { width:104px; height:104px; border-radius:50%; object-fit:cover; border:3px solid #38bdf8; background:#17233a; }
+.warning-text { margin:9px 0 0; font-size:12px; line-height:1.4; color:#fbbf24; }

@@ -6,12 +6,15 @@ Requires Python Playwright and Pillow only, and never makes a web request.
 import io
 import os
 import re
+import sys
 from pathlib import Path
 
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).parent))
+from browser_smoke import rebranded_gecko_launcher  # noqa: E402
 
 
 def jpeg():
@@ -56,6 +59,12 @@ def export_probe(page, source, original_name='probe.jpg', target='linkedin'):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Offline popup UI smoke test.')
+    parser.add_argument('--browser', choices=['chromium', 'firefox'], default='chromium',
+                        help='Engine to run the popup DOM on (default: chromium).')
+    args = parser.parse_args()
+
     html = (ROOT / 'src/popup.html').read_text()
     html = re.sub(r'<script type="module" src="popup.mjs"></script>', '', html)
     css = (ROOT / 'src/popup.css').read_text()
@@ -89,7 +98,12 @@ def main():
         launch_args = {'headless': True}
         if os.getenv('CHROMIUM_PATH'):
             launch_args['executable_path'] = os.environ['CHROMIUM_PATH']
-        browser=playwright.chromium.launch(**launch_args)
+        engine = getattr(playwright, args.browser)
+        if args.browser == 'firefox' and sys.platform == 'darwin':
+            # macOS 27 TCC protects the default Firefox app-data dir; the
+            # rebranded launcher points the same binary at a neutral one.
+            launch_args['executable_path'] = str(rebranded_gecko_launcher(playwright))
+        browser = engine.launch(**launch_args)
         try:
             page=browser.new_page(viewport={'width':410,'height':780})
             errors=[]
@@ -196,10 +210,34 @@ def main():
             assert rejected_target.startswith('rejected:'), rejected_target
             print('PASS: export handles portrait, odd, undersized, invalid and unknown-target inputs')
 
-            # Remove the extra photo so the rotation/schedule flow below
-            # sees the same single-photo library as before.
+            # Stale-async regression: a slow export must never overwrite a
+            # newer selection, and deleting the selected picture mid-process
+            # must leave the preview reset once the stale run completes.
+            page.evaluate("""() => {
+              window.__exportDelay = 0;
+              const original = cropSquareForExport;
+              cropSquareForExport = async (...args) => {
+                const delay = window.__exportDelay;
+                if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+                return original(...args);
+              };
+            }""")
+            page.evaluate('window.__exportDelay = 400')
+            page.locator('#export-photo').select_option(label='test-image.jpg')
+            page.locator('#export-photo').select_option(label='wide.jpg')
+            page.wait_for_function("!document.querySelector('#export-preview-wrap').hidden")
+            raced_status = page.locator('#status').text_content()
+            assert 'wide-linkedin-400x400.jpg' in raced_status, f'stale export won the race: {raced_status}'
+            page.locator('#export-photo').select_option(label='wide.jpg')
             page.locator('.photo', has_text='wide.jpg').locator('button').click()
             page.wait_for_function("document.querySelector('#count').textContent.includes('1 / 20')")
+            page.wait_for_timeout(800)
+            assert page.evaluate("document.querySelector('#export-preview-wrap').hidden") is True, \
+                'stale export repopulated the preview after the selection was deleted'
+            assert 'Export ready' not in page.locator('#status').text_content()
+            page.evaluate('window.__exportDelay = 0')
+            print('PASS: stale async export results cannot overwrite a newer selection or a deletion')
+
             page.locator('#prepare').click()
             page.wait_for_function("document.querySelector('#status').textContent.includes('Ready for review in the Facebook tab')")
             page.locator('#schedule').check()

@@ -41,8 +41,15 @@ jobs:
         if: matrix.engine == 'chromium'
         run: |
           set -o pipefail
-          python3 tools/popup_smoke.py | tee popup-smoke.log
+          python3 tools/popup_smoke.py --browser chromium | tee popup-smoke.log
           test "$(grep -c '^FAIL' popup-smoke.log)" = "0"
+
+      - name: Run popup UI smoke (export + publish gating) on Firefox
+        if: matrix.engine == 'firefox'
+        run: |
+          set -o pipefail
+          python3 tools/popup_smoke.py --browser firefox | tee popup-smoke-firefox.log
+          test "$(grep -c '^FAIL' popup-smoke-firefox.log)" = "0"
 
       - name: Upload battery log
         if: always()

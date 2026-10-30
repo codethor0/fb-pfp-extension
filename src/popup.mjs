@@ -76,6 +76,11 @@ async function importFiles(files) {
 // rotation state is untouched, and nothing is sent anywhere.
 const EXPORT_TARGET_ID = 'linkedin';
 
+// Bumped on every selection change and library refresh. An async export
+// that finishes after its generation lost the race: it must not touch the
+// preview, the download, or the status line.
+let exportGeneration = 0;
+
 function resetExport() {
   if (exportUrl) {URL.revokeObjectURL(exportUrl); exportUrl = null;}
   exportReady = null;
@@ -86,6 +91,7 @@ function resetExport() {
 }
 
 function renderExportChoices() {
+  exportGeneration++;
   const select = $('export-photo');
   const previous = select.value;
   select.replaceChildren();
@@ -102,13 +108,15 @@ function renderExportChoices() {
 }
 
 async function prepareExport(id) {
+  const generation = ++exportGeneration;
   resetExport();
   if (!id) return;
-  const target = EXPORT_TARGETS[EXPORT_TARGET_ID];
   try {
     const photo = await getPhoto(id);
+    if (generation !== exportGeneration) return;
     if (!photo) throw new Error('Stored picture no longer exists');
     const result = await cropSquareForExport(photo.blob, EXPORT_TARGET_ID, photo.originalName);
+    if (generation !== exportGeneration) return;
     exportUrl = URL.createObjectURL(result.blob);
     exportReady = result;
     $('export-preview').src = exportUrl;
@@ -117,7 +125,7 @@ async function prepareExport(id) {
     $('export-download').disabled = false;
     status(`Export ready: ${result.fileName} (${result.width} x ${result.height}).`);
   } catch (error) {
-    status(`Export failed: ${error.message}`, true);
+    if (generation === exportGeneration) status(`Export failed: ${error.message}`, true);
   }
 }
 
@@ -186,7 +194,7 @@ $('export-download').addEventListener('click', () => {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  status(`Downloaded ${exportReady.fileName}. Upload it through ${EXPORT_TARGETS[EXPORT_TARGET_ID].label}'s own page.`);
+  status(`Download started: ${exportReady.fileName}. Upload it through ${EXPORT_TARGETS[EXPORT_TARGET_ID].label}'s own page when it lands in your downloads folder.`);
 });
 $('save').addEventListener('click', async () => {
   $('save').disabled = true;

@@ -1,5 +1,5 @@
-import {listPhotos, savePhoto, deletePhoto} from './library.mjs';
-import {normalizePhoto, MAX_LIBRARY_COUNT, safePhotoName} from './images.mjs';
+import {listPhotos, savePhoto, deletePhoto, getPhoto} from './library.mjs';
+import {normalizePhoto, MAX_LIBRARY_COUNT, safePhotoName, cropSquareForExport, EXPORT_TARGETS} from './images.mjs';
 import {resolveSiteRoute} from './logic.mjs';
 
 const siteLabel = settings => resolveSiteRoute(settings?.siteId)?.label || 'Facebook';
@@ -12,6 +12,8 @@ const status = (message, error = false) => {
 let photos = [];
 let objectUrls = [];
 let busy = false;
+let exportUrl = null;
+let exportReady = null;
 
 function updateActions() {
   $('prepare').disabled = busy || photos.length === 0;
@@ -49,6 +51,7 @@ async function renderPhotos() {
     row.append(thumb, name, button);
     list.appendChild(row);
   }
+  renderExportChoices();
   updateActions();
 }
 
@@ -67,6 +70,55 @@ async function importFiles(files) {
   }
   await renderPhotos();
   status(`${added} picture(s) imported.${errors.length ? ' ' + errors.join(' ') : ''}`, errors.length > 0);
+}
+
+// Local export: read-only over the library. No stored record is modified,
+// rotation state is untouched, and nothing is sent anywhere.
+const EXPORT_TARGET_ID = 'linkedin';
+
+function resetExport() {
+  if (exportUrl) {URL.revokeObjectURL(exportUrl); exportUrl = null;}
+  exportReady = null;
+  $('export-preview-wrap').hidden = true;
+  $('export-preview').removeAttribute('src');
+  $('export-warning').hidden = true;
+  $('export-download').disabled = true;
+}
+
+function renderExportChoices() {
+  const select = $('export-photo');
+  const previous = select.value;
+  select.replaceChildren();
+  if (!photos.length) {
+    select.append(new Option('Import a picture first', ''));
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+    select.append(new Option('Choose a picture', ''));
+    for (const photo of photos) select.append(new Option(safePhotoName(photo.originalName), photo.id));
+    if (photos.some(photo => photo.id === previous)) select.value = previous;
+  }
+  resetExport();
+}
+
+async function prepareExport(id) {
+  resetExport();
+  if (!id) return;
+  const target = EXPORT_TARGETS[EXPORT_TARGET_ID];
+  try {
+    const photo = await getPhoto(id);
+    if (!photo) throw new Error('Stored picture no longer exists');
+    const result = await cropSquareForExport(photo.blob, EXPORT_TARGET_ID, photo.originalName);
+    exportUrl = URL.createObjectURL(result.blob);
+    exportReady = result;
+    $('export-preview').src = exportUrl;
+    $('export-preview-wrap').hidden = false;
+    $('export-warning').hidden = !result.upscaled;
+    $('export-download').disabled = false;
+    status(`Export ready: ${result.fileName} (${result.width} x ${result.height}).`);
+  } catch (error) {
+    status(`Export failed: ${error.message}`, true);
+  }
 }
 
 async function request(message) {
@@ -125,6 +177,17 @@ $('picker').addEventListener('change', async event => {
 $('confirm-publish').addEventListener('change', updateActions);
 $('prepare').addEventListener('click', () => {void run('PREPARE_NEXT');});
 $('publish').addEventListener('click', () => {void run('PUBLISH_NEXT');});
+$('export-photo').addEventListener('change', event => {void prepareExport(event.target.value);});
+$('export-download').addEventListener('click', () => {
+  if (!exportReady || !exportUrl) return;
+  const anchor = document.createElement('a');
+  anchor.href = exportUrl;
+  anchor.download = exportReady.fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  status(`Downloaded ${exportReady.fileName}. Upload it through ${EXPORT_TARGETS[EXPORT_TARGET_ID].label}'s own page.`);
+});
 $('save').addEventListener('click', async () => {
   $('save').disabled = true;
   try {
@@ -143,5 +206,8 @@ $('save').addEventListener('click', async () => {
   } catch (error) {status(error.message, true);}
   finally {$('save').disabled = false;}
 });
-window.addEventListener('unload', () => {for (const url of objectUrls) URL.revokeObjectURL(url);});
+window.addEventListener('unload', () => {
+  for (const url of objectUrls) URL.revokeObjectURL(url);
+  if (exportUrl) URL.revokeObjectURL(exportUrl);
+});
 void start();

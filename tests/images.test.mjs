@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   imageFormat, declaredPngDimensions, dimensionsSupported,
-  safePhotoName, MAX_PIXELS
+  safePhotoName, MAX_PIXELS,
+  EXPORT_TARGETS, exportTarget, squareCropSource, exportFileName
 } from '../src/images.mjs';
 
 test('imageFormat detects real magic bytes only', () => {
@@ -50,4 +51,49 @@ test('safePhotoName strips path and markup characters', () => {
   assert.equal(safePhotoName(''), 'photo');
   assert.equal(safePhotoName('Vacation 2026.JPG').length <= 80, true);
   assert.equal(safePhotoName('x'.repeat(200)).length, 80);
+});
+
+test('exportTarget resolves only declared targets, frozen', () => {
+  const linkedin = exportTarget('linkedin');
+  assert.equal(linkedin.size, 400);
+  assert.equal(linkedin.maxBytes, 8 * 1024 * 1024);
+  assert.equal(linkedin.label, 'LinkedIn');
+  assert.equal(exportTarget('facebook'), null);
+  assert.equal(exportTarget('__proto__'), null);
+  assert.equal(exportTarget('constructor'), null);
+  assert.equal(exportTarget('hasOwnProperty'), null);
+  assert.ok(Object.isFrozen(linkedin));
+  assert.ok(Object.isFrozen(EXPORT_TARGETS));
+});
+
+test('squareCropSource center-crops the short side for landscape and portrait', () => {
+  assert.deepEqual(squareCropSource(600, 400), {sx: 100, sy: 0, side: 400});
+  assert.deepEqual(squareCropSource(300, 500), {sx: 0, sy: 100, side: 300});
+  assert.deepEqual(squareCropSource(400, 400), {sx: 0, sy: 0, side: 400});
+  // Odd sizes: floor() never returns a half-pixel rectangle.
+  assert.deepEqual(squareCropSource(301, 499), {sx: 0, sy: 99, side: 301});
+  assert.deepEqual(squareCropSource(499, 301), {sx: 99, sy: 0, side: 301});
+});
+
+test('squareCropSource rejects dimensions the pixel budget rejects', () => {
+  assert.equal(squareCropSource(0, 10), null);
+  assert.equal(squareCropSource(10.5, 10), null);
+  assert.equal(squareCropSource(-5, 10), null);
+  assert.equal(squareCropSource(9000, 9000), null);
+});
+
+test('exportFileName builds the linkedin name and sanitizes the base', () => {
+  const target = EXPORT_TARGETS.linkedin;
+  assert.equal(exportFileName('Vacation 2026.JPG', target), 'Vacation_2026-linkedin-400x400.jpg');
+  assert.equal(exportFileName('', target), 'portrait-linkedin-400x400.jpg');
+  assert.equal(exportFileName(null, target), 'portrait-linkedin-400x400.jpg');
+  const traversal = exportFileName('../../../etc/passwd.jpg', target);
+  assert.equal(/[\\/]/.test(traversal), false);
+  assert.ok(traversal.endsWith('-linkedin-400x400.jpg'));
+  const markup = exportFileName('<img src=x onerror=alert(1)>.jpg', target);
+  assert.equal(/[<>]/.test(markup), false);
+  // Total length stays capped even for a very long base name.
+  assert.ok(exportFileName('x'.repeat(500) + '.jpg', target).length <= 100);
+  // No period injection before the suffix that could fake an extension.
+  assert.ok(exportFileName('..', target).endsWith('-linkedin-400x400.jpg'));
 });

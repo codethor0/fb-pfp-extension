@@ -40,6 +40,17 @@
       <button id="save" type="button">Save preferences</button>
       <p class="muted">The browser must be open. A scheduled run never clicks Save.</p>
     </section>
+    <section>
+      <h2>4. Prepare for export</h2>
+      <p class="muted">Pick a stored picture, preview the square crop, and download a metadata-free JPEG sized for LinkedIn (400 x 400 px, under 8 MB). Upload it through LinkedIn's own page. This extension never opens or touches LinkedIn.</p>
+      <label for="export-photo">Picture</label>
+      <select id="export-photo" disabled><option value="">Import a picture first</option></select>
+      <div id="export-preview-wrap" class="export-preview" hidden>
+        <img id="export-preview" alt="Square preview of the selected picture">
+      </div>
+      <p id="export-warning" class="warning-text" hidden>This picture is smaller than 400 x 400, so the export is upscaled and may look soft. Use a higher-resolution original if you have one.</p>
+      <button id="export-download" class="primary" type="button" disabled>Download for LinkedIn</button>
+    </section>
     <p id="status" role="status" aria-live="polite">Ready.</p>
     <footer><span>No telemetry</span><span>Use only on an account you own</span></footer>
   </main>

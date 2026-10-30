@@ -37,6 +37,13 @@ jobs:
           test "$(grep -c '^FAIL' battery-${{ matrix.engine }}.log)" = "0"
           ! grep -q '^SKIP' battery-${{ matrix.engine }}.log
 
+      - name: Run popup UI smoke (export + publish gating) on Chromium
+        if: matrix.engine == 'chromium'
+        run: |
+          set -o pipefail
+          python3 tools/popup_smoke.py | tee popup-smoke.log
+          test "$(grep -c '^FAIL' popup-smoke.log)" = "0"
+
       - name: Upload battery log
         if: always()
         uses: actions/upload-artifact@v4

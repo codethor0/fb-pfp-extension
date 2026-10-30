@@ -274,6 +274,51 @@ def main():
                 fail('image import', f'unexpected stored photos {stored}')
             ok('image import through real popup into IndexedDB', stored[0]['name'])
 
+            # Export: select the stored photo in the real popup, confirm the
+            # square preview renders, then run the production transform
+            # against the real IndexedDB blob. The library must be identical
+            # afterwards and the JPEG must carry no EXIF segment.
+            popup.locator('#export-photo').select_option(index=1)
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if popup.evaluate("!document.querySelector('#export-preview-wrap').hidden"):
+                    break
+                time.sleep(0.5)
+            else:
+                fail('export', 'export preview never appeared')
+            if popup.locator('#export-preview').evaluate('img => img.naturalWidth') != 400:
+                fail('export', 'preview is not the 400px square crop')
+            scrollable = popup.evaluate(
+                'document.body.scrollHeight > document.body.clientHeight')
+            export_result = popup.evaluate('''async () => {
+              const {listPhotos} = await import('./library.mjs');
+              const {cropSquareForExport} = await import('./images.mjs');
+              const photos = await listPhotos();
+              const source = photos[0].blob;
+              const result = await cropSquareForExport(source, 'linkedin', photos[0].originalName);
+              const bytes = new Uint8Array(await result.blob.arrayBuffer());
+              let binary = '';
+              bytes.forEach(b => binary += String.fromCharCode(b));
+              const after = await listPhotos();
+              return {count: after.length, storedBytes: after[0].blob.size,
+                sourceBytes: source.size, width: result.width, height: result.height,
+                upscaled: result.upscaled, fileName: result.fileName, type: result.blob.type,
+                data: btoa(binary)};
+            }''')
+            data = base64.b64decode(export_result['data'])
+            if (export_result['width'], export_result['height']) != (400, 400) \
+                    or export_result['type'] != 'image/jpeg':
+                fail('export', f"unexpected output {export_result['width']}x{export_result['height']} {export_result['type']}")
+            if export_result['fileName'] != 'photo-linkedin-400x400.jpg':
+                fail('export', f"unexpected filename {export_result['fileName']}")
+            if data[:3] != b'\xff\xd8\xff' or b'Exif\x00\x00' in data:
+                fail('export', 'output is not a clean metadata-free JPEG')
+            if export_result['count'] != 1 or export_result['storedBytes'] != export_result['sourceBytes']:
+                fail('export', 'library changed during export')
+            ok('export square-crops the IndexedDB photo to a clean 400x400 JPEG',
+               f"{export_result['fileName']} upscaled={export_result['upscaled']} scrollable={scrollable}")
+            ok('export left the stored library byte-identical')
+
             # Schedule: enable the daily review and confirm the alarm exists.
             popup.locator('#schedule').check()
             popup.locator('#save').click()

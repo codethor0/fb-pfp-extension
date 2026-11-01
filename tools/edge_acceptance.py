@@ -26,10 +26,15 @@ The test drives:
   5. the review flow end to end: popup -> worker -> new tab on the mapped
      fixture -> content script stages the photo and verifies the preview,
      with Save never clicked
+  6. the export flow through the popup's real Download button: the saved
+     file lands in a test-owned directory and is verified byte for byte
+     against the transform output (filename, JPEG encoding, 400x400
+     dimensions, EXIF removal, SHA-256 match)
 
 Prerequisites: Microsoft Edge installed, nothing on port 9223 or 8443.
 """
 
+import hashlib
 import http.server
 import json
 import os
@@ -275,9 +280,11 @@ def main():
             ok('image import through real popup into IndexedDB', stored[0]['name'])
 
             # Export: select the stored photo in the real popup, confirm the
-            # square preview renders, then run the production transform
-            # against the real IndexedDB blob. The library must be identical
-            # afterwards and the JPEG must carry no EXIF segment.
+            # square preview renders, then press the real Download button
+            # and capture the saved file in a test-owned directory. Library
+            # integrity is proven by SHA-256 over the complete stored bytes
+            # before and after the export, not by comparing sizes, and the
+            # downloaded JPEG must decode to 400x400 with no EXIF segment.
             popup.locator('#export-photo').select_option(index=1)
             deadline = time.time() + 20
             while time.time() < deadline:
@@ -293,17 +300,25 @@ def main():
             export_result = popup.evaluate('''async () => {
               const {listPhotos} = await import('./library.mjs');
               const {cropSquareForExport} = await import('./images.mjs');
+              const hex = buffer => [...new Uint8Array(buffer)]
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+              const digest = async blob =>
+                hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()));
               const photos = await listPhotos();
-              const source = photos[0].blob;
-              const result = await cropSquareForExport(source, 'linkedin', photos[0].originalName);
+              const before = await digest(photos[0].blob);
+              const result = await cropSquareForExport(
+                photos[0].blob, 'linkedin', photos[0].originalName);
+              const afterPhotos = await listPhotos();
+              const after = await digest(afterPhotos[0].blob);
               const bytes = new Uint8Array(await result.blob.arrayBuffer());
               let binary = '';
               bytes.forEach(b => binary += String.fromCharCode(b));
-              const after = await listPhotos();
-              return {count: after.length, storedBytes: after[0].blob.size,
-                sourceBytes: source.size, width: result.width, height: result.height,
-                upscaled: result.upscaled, fileName: result.fileName, type: result.blob.type,
-                data: btoa(binary)};
+              return {before, after,
+                expected: hex(await crypto.subtle.digest('SHA-256', bytes.buffer)),
+                storedCount: afterPhotos.length,
+                width: result.width, height: result.height,
+                upscaled: result.upscaled, fileName: result.fileName,
+                type: result.blob.type, data: btoa(binary)};
             }''')
             data = base64.b64decode(export_result['data'])
             if (export_result['width'], export_result['height']) != (400, 400) \
@@ -313,11 +328,51 @@ def main():
                 fail('export', f"unexpected filename {export_result['fileName']}")
             if data[:3] != b'\xff\xd8\xff' or b'Exif\x00\x00' in data:
                 fail('export', 'output is not a clean metadata-free JPEG')
-            if export_result['count'] != 1 or export_result['storedBytes'] != export_result['sourceBytes']:
+            if export_result['storedCount'] != 1 or export_result['before'] != export_result['after']:
                 fail('export', 'library changed during export')
             ok('export square-crops the IndexedDB photo to a clean 400x400 JPEG',
                f"{export_result['fileName']} upscaled={export_result['upscaled']} scrollable={scrollable}")
-            ok('export left the stored library byte-identical')
+            ok('export left the stored library byte-identical',
+               f"sha256 {export_result['before'][:16]}...")
+
+            # Press the popup's real Download button and capture the file.
+            # Downloads are steered into a directory this run owns through
+            # the browser-level CDP session, so the user's Downloads folder
+            # and profile are never touched. The saved file must match the
+            # export transform output byte for byte.
+            dl_dir = Path(tmp) / 'downloads'
+            dl_dir.mkdir()
+            cdp = browser.new_browser_cdp_session()
+            cdp.send('Browser.setDownloadBehavior', {
+                'behavior': 'allow', 'downloadPath': str(dl_dir),
+                'eventsEnabled': True})
+            popup.locator('#export-download').click()
+            downloaded = None
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                pending = list(dl_dir.glob('*.crdownload'))
+                ready = [f for f in dl_dir.iterdir()
+                         if f.is_file() and f.suffix != '.crdownload']
+                if ready and not pending:
+                    downloaded = ready[0]
+                    break
+                time.sleep(0.5)
+            if downloaded is None:
+                fail('export download', 'saved file never landed in the test directory')
+            file_bytes = downloaded.read_bytes()
+            if downloaded.name != 'photo-linkedin-400x400.jpg':
+                fail('export download', f'unexpected filename {downloaded.name}')
+            if file_bytes[:3] != b'\xff\xd8\xff' or b'Exif\x00\x00' in file_bytes:
+                fail('export download', 'saved file is not a clean metadata-free JPEG')
+            if hashlib.sha256(file_bytes).hexdigest() != export_result['expected']:
+                fail('export download', 'saved bytes differ from the export transform output')
+            from PIL import Image
+            with Image.open(downloaded) as decoded:
+                if decoded.format != 'JPEG' or decoded.size != (400, 400):
+                    fail('export download',
+                         f'unexpected decoded image {decoded.format} {decoded.size}')
+            ok('popup Download button saved the expected file',
+               f'{downloaded.name} {len(file_bytes)} bytes')
 
             # Schedule: enable the daily review and confirm the alarm exists.
             popup.locator('#schedule').check()
